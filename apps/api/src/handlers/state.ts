@@ -1,5 +1,5 @@
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from "aws-lambda";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { ConditionalCheckFailedException, DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { jsonResponse } from "../lib/httpResponse";
 
@@ -49,6 +49,15 @@ export async function getState(event: APIGatewayProxyEventV2WithJWTAuthorizer): 
   return jsonResponse(200, { state: result.Item.state, updatedAt: result.Item.updatedAt });
 }
 
+/**
+ * Optimistic-concurrency guard against silent overwrites when the same
+ * account is open on two devices/tabs: the client must send back the
+ * `updatedAt` it last saw (from its last GET or PUT), and the write is
+ * rejected with 409 if the stored item has since moved on — i.e. someone
+ * else saved a newer version in between. A missing `baseUpdatedAt` means
+ * "I've never fetched", which is only valid if nothing has been saved yet
+ * (attribute_not_exists) — if it has, that's exactly the same conflict.
+ */
 export async function putState(event: APIGatewayProxyEventV2WithJWTAuthorizer): Promise<APIGatewayProxyResultV2> {
   const accountId = accountIdFrom(event);
   const rawBody = event.body ?? "";
@@ -65,13 +74,27 @@ export async function putState(event: APIGatewayProxyEventV2WithJWTAuthorizer): 
   if (typeof parsed !== "object" || parsed === null) {
     return jsonResponse(400, { error: "body must be a JSON object" });
   }
+  const { state, baseUpdatedAt } = parsed as { state?: unknown; baseUpdatedAt?: string | null };
+  if (typeof state !== "object" || state === null) {
+    return jsonResponse(400, { error: "body.state must be an object" });
+  }
 
   const updatedAt = new Date().toISOString();
-  await ddb.send(
-    new PutCommand({
-      TableName: TABLE_NAME,
-      Item: { accountId, sk: STATE_SK, state: parsed, updatedAt },
-    }),
-  );
+  try {
+    await ddb.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: { accountId, sk: STATE_SK, state, updatedAt },
+        ConditionExpression: baseUpdatedAt ? "updatedAt = :base" : "attribute_not_exists(accountId)",
+        ExpressionAttributeValues: baseUpdatedAt ? { ":base": baseUpdatedAt } : undefined,
+      }),
+    );
+  } catch (err) {
+    if (err instanceof ConditionalCheckFailedException) {
+      const current = await ddb.send(new GetCommand({ TableName: TABLE_NAME, Key: { accountId, sk: STATE_SK } }));
+      return jsonResponse(409, { error: "conflict", currentUpdatedAt: current.Item?.updatedAt ?? null });
+    }
+    throw err;
+  }
   return jsonResponse(200, { updatedAt });
 }

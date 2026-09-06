@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../state/AuthContext";
 import { useAppDispatch, useAppState } from "../state/AppStateContext";
-import { useCloudSync } from "../hooks/useCloudSync";
+import { useCloudSync } from "../state/CloudSyncContext";
 import { createCheckoutSession } from "../lib/api/cloudStateClient";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
@@ -12,7 +12,7 @@ export function AccountPage() {
   const { auth, signUp, confirmSignUp, resendConfirmationCode, signIn, signOut, refreshPlan } = useAuth();
   const state = useAppState();
   const dispatch = useAppDispatch();
-  const { status: syncStatus, loadFromCloud } = useCloudSync();
+  const { status: syncStatus, conflictUpdatedAt, loadFromCloud, overwriteCloudWithLocal, discardLocalAndUseCloud } = useCloudSync();
 
   const [mode, setMode] = useState<Mode>("signIn");
   const [email, setEmail] = useState("");
@@ -76,6 +76,28 @@ export function AccountPage() {
     }
   }
 
+  async function handleOverwriteCloud() {
+    if (!confirm("他の端末・タブで保存された内容を、この端末の内容で上書きします。よろしいですか？")) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await overwriteCloudWithLocal();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDiscardLocal() {
+    if (!confirm("この端末での変更を破棄して、他の端末・タブで保存された内容を読み込みます。よろしいですか？")) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await discardLocalAndUseCloud();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleLoadFromCloud() {
     if (state.meta.isDirty && !confirm("現在の未保存データは失われます。クラウドの保存データを読み込みますか？")) return;
     setError(null);
@@ -126,6 +148,25 @@ export function AccountPage() {
           </div>
         </section>
 
+        {auth.plan === "paid" && syncStatus === "conflict" && (
+          <section className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+            <h2 className="mb-1 text-base font-semibold text-amber-800">別の端末・タブでの保存と競合しています</h2>
+            <p className="mb-2 text-sm text-amber-700">
+              このアカウントの別の場所（別タブや別端末）で、この端末より新しい内容が保存されています
+              {conflictUpdatedAt && `（保存日時: ${new Date(conflictUpdatedAt).toLocaleString("ja-JP")}）`}。
+              自動保存は一時停止しています。どちらを残すか選んでください。
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button type="button" onClick={handleOverwriteCloud} disabled={busy}>
+                この端末の内容で上書き保存する
+              </Button>
+              <Button type="button" variant="secondary" onClick={handleDiscardLocal} disabled={busy}>
+                この端末の変更を破棄して読み込む
+              </Button>
+            </div>
+          </section>
+        )}
+
         {auth.plan === "paid" && (
           <section className="rounded-lg border border-zinc-200 bg-white p-3">
             <h2 className="mb-1 text-base font-semibold text-zinc-700">クラウド自動保存</h2>
@@ -134,6 +175,7 @@ export function AccountPage() {
               {syncStatus === "saving" && " 保存中..."}
               {syncStatus === "saved" && " ✓ 保存済み"}
               {syncStatus === "error" && " 保存に失敗しました。ネットワーク接続を確認してください。"}
+              {syncStatus === "conflict" && " ⚠ 競合のため一時停止中です（上の案内をご確認ください）。"}
             </p>
             <Button type="button" variant="secondary" onClick={handleLoadFromCloud} disabled={busy}>
               クラウドの保存データを読み込む

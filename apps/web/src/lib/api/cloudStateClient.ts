@@ -21,12 +21,35 @@ export async function fetchCloudState(idToken: string): Promise<{ state: unknown
   return res.json();
 }
 
-export async function saveCloudState(idToken: string, state: unknown): Promise<{ updatedAt: string }> {
+/**
+ * Thrown when the server rejects a save because someone else (another tab
+ * or device on the same account) saved a newer version in between —
+ * `currentUpdatedAt` is that newer version's timestamp, needed to force an
+ * overwrite deliberately (see useCloudSync's overwriteCloudWithLocal).
+ */
+export class SaveConflictError extends Error {
+  readonly currentUpdatedAt: string | null;
+
+  constructor(currentUpdatedAt: string | null) {
+    super("cloud save conflict: a newer version exists");
+    this.currentUpdatedAt = currentUpdatedAt;
+  }
+}
+
+export async function saveCloudState(
+  idToken: string,
+  state: unknown,
+  baseUpdatedAt: string | null,
+): Promise<{ updatedAt: string }> {
   const res = await fetch(`${API_BASE_URL}/state`, {
     method: "PUT",
     headers: { ...authHeaders(idToken), "content-type": "application/json" },
-    body: JSON.stringify(state),
+    body: JSON.stringify({ state, baseUpdatedAt }),
   });
+  if (res.status === 409) {
+    const body = (await res.json()) as { currentUpdatedAt: string | null };
+    throw new SaveConflictError(body.currentUpdatedAt);
+  }
   if (!res.ok) throw new Error(`PUT /state failed: ${res.status}`);
   return res.json();
 }

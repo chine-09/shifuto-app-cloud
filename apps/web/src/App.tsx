@@ -12,9 +12,9 @@ import { Nav } from './components/Nav'
 import { Button } from './components/ui/Button'
 import { AppStateProvider, useAppDispatch, useAppState } from './state/AppStateContext'
 import { AuthProvider } from './state/AuthContext'
+import { CloudSyncProvider, useCloudSync } from './state/CloudSyncContext'
 import { useBeforeUnloadGuard } from './hooks/useBeforeUnloadGuard'
 import { useUndoShortcut } from './hooks/useUndoShortcut'
-import { useCloudSync } from './hooks/useCloudSync'
 import { exportStateJson } from './lib/io/exportStateJson'
 
 function AppShell() {
@@ -22,7 +22,7 @@ function AppShell() {
   const dispatch = useAppDispatch()
   const { showSaveReminder, dismissSaveReminder } = useBeforeUnloadGuard(state.meta.isDirty)
   useUndoShortcut(dispatch)
-  useCloudSync()
+  useCloudSync() // subscribes this component to the shared instance so it re-renders as sync status changes
 
   function handleSaveFromReminder() {
     exportStateJson(state)
@@ -72,7 +72,9 @@ export default function App() {
   return (
     <AuthProvider>
       <AppStateProvider>
-        <AppShell />
+        <CloudSyncProvider>
+          <AppShell />
+        </CloudSyncProvider>
       </AppStateProvider>
     </AuthProvider>
   )
