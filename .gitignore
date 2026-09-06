@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.local
+*.tsbuildinfo
+.aws-sam/
+.vercel/
+test-results/
+playwright-report/
+blob-report/

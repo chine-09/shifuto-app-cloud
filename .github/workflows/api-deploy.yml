@@ -1,0 +1,50 @@
+name: Deploy Lambda API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "packages/shared-core/**"
+      - ".github/workflows/api-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write # required for OIDC -> AWS role assumption
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test --workspace=apps/api
+      - run: npm run typecheck --workspace=apps/api
+
+      - uses: aws-actions/setup-sam@v2
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # Create this IAM role beforehand (OIDC trust policy for this repo)
+          # and set its ARN as a repository secret. Avoids long-lived AWS keys.
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: sam build
+        working-directory: apps/api
+        run: sam build
+
+      - name: sam deploy
+        working-directory: apps/api
+        run: |
+          sam deploy \
+            --stack-name shifuto-app-local-api \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --resolve-s3 \
+            --parameter-overrides AllowedOrigin=${{ secrets.WEB_ORIGIN }}

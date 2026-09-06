@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: shifuto-app-local API — stateless shift auto-assign (no DB, no PII)
+
+Parameters:
+  AllowedOrigin:
+    Type: String
+    Description: The Vercel origin allowed to call this API (CORS).
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    MemorySize: 256
+    Timeout: 10
+    Architectures:
+      - arm64
+
+Resources:
+  ShiftApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      # Auth.ApiKeyRequired is deliberately NOT set here (at the API level):
+      # SAM's auto-generated CORS OPTIONS mock method would inherit it too,
+      # and browsers never send x-api-key on a preflight request — that
+      # combination makes every CORS preflight fail with 403. Requiring the
+      # key only on the actual POST event (below) keeps OPTIONS open.
+      Cors:
+        AllowOrigin: !Sub "'${AllowedOrigin}'"
+        AllowHeaders: "'content-type,x-api-key'"
+        AllowMethods: "'POST,OPTIONS'"
+
+  AutoAssignShiftsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: handlers/autoAssignShifts.handler
+      Environment:
+        Variables:
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ShiftApi
+            Path: /auto-assign
+            Method: post
+            Auth:
+              ApiKeyRequired: true
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2022"
+        EntryPoints:
+          - handlers/autoAssignShifts.ts
+
+  ShiftApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    DependsOn:
+      - ShiftApiprodStage
+    Properties:
+      Enabled: true
+
+  ShiftApiUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn:
+      - ShiftApiprodStage
+    Properties:
+      ApiStages:
+        - ApiId: !Ref ShiftApi
+          Stage: prod
+      Throttle:
+        RateLimit: 5
+        BurstLimit: 10
+
+  ShiftApiUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref ShiftApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref ShiftApiUsagePlan
+
+Outputs:
+  ApiUrl:
+    Description: Base URL for the API (set as VITE_API_BASE_URL)
+    Value: !Sub "https://${ShiftApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  ApiKeyId:
+    Description: Retrieve the actual key value with `aws apigateway get-api-key --api-key <id> --include-value`
+    Value: !Ref ShiftApiKey
