@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { daysInMonth, toDateKey, type EmployeeId, type TaskSegment } from "@shifuto/shared-core";
-import { useAppState } from "../../state/AppStateContext";
+import { useAppDispatch, useAppState } from "../../state/AppStateContext";
 import { activeEmployees, taskSegmentsForDay } from "../../state/selectors";
 import { WorkTaskManager } from "../../components/gantt/WorkTaskManager";
 import { DayGanttRow } from "../../components/gantt/DayGanttRow";
@@ -23,6 +23,7 @@ type EditorTarget = { employeeId: EmployeeId; segment: TaskSegment | null };
 export function GanttDetailPage() {
   const { planId, plan } = usePlanContext();
   const state = useAppState();
+  const dispatch = useAppDispatch();
   const employees = activeEmployees(state);
   const monthDates = useMemo(() => daysInMonth(plan.year, plan.month), [plan.year, plan.month]);
 
@@ -37,6 +38,15 @@ export function GanttDetailPage() {
     () => buildTimeTicks(gridStart, gridEnd).filter((t) => t.endsWith(":00")),
     [gridStart, gridEnd],
   );
+
+  function handleResizeSegment(segment: TaskSegment, startTime: string, endTime: string) {
+    const siblings = segments.filter((s) => s.employeeId === segment.employeeId && s.id !== segment.id);
+    const overlaps = siblings.some((s) => startTime < s.endTime && endTime > s.startTime);
+    if (overlaps) return; // silently reject — the bar snaps back since the draft state resets on drop
+
+    const updated = [...siblings, { ...segment, startTime, endTime }];
+    dispatch({ type: "REPLACE_TASK_SEGMENTS_FOR_DAY", planId, employeeId: segment.employeeId, date, segments: updated });
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -97,6 +107,7 @@ export function GanttDetailPage() {
                     gridEnd={gridEnd}
                     onAddSegment={() => setEditorTarget({ employeeId: employee.id, segment: null })}
                     onEditSegment={(segment) => setEditorTarget({ employeeId: employee.id, segment })}
+                    onResizeSegment={handleResizeSegment}
                   />
                 ))}
               </div>
@@ -104,7 +115,7 @@ export function GanttDetailPage() {
           </div>
         )}
         <p className="mt-2 text-sm text-zinc-400">
-          行をクリックすると15分単位で時間帯を追加できます。既存の色付きバーをクリックすると編集・削除できます。
+          行をクリックすると15分単位で時間帯を追加できます。既存の色付きバーはクリックで編集・削除、端をドラッグすると時間を変更できます。
         </p>
       </section>
 
