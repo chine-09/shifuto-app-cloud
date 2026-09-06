@@ -18,8 +18,8 @@ import * as iam from "aws-cdk-lib/aws-iam";
 export interface ShifutoCloudStackProps extends StackProps {
   /** Globally-unique prefix for the Cognito Hosted UI domain. */
   cognitoDomainPrefix: string;
-  /** Extra CORS origin allowed in addition to the CloudFront domain (local dev). */
-  devOrigin: string;
+  /** Extra CORS origins allowed in addition to the CloudFront domain (local dev). */
+  devOrigins: string[];
 }
 
 /**
@@ -99,8 +99,8 @@ export class ShifutoCloudStack extends Stack {
       oAuth: {
         flows: { authorizationCodeGrant: true },
         scopes: [cognito.OAuthScope.OPENID, cognito.OAuthScope.EMAIL, cognito.OAuthScope.PROFILE],
-        callbackUrls: [webOrigin, props.devOrigin],
-        logoutUrls: [webOrigin, props.devOrigin],
+        callbackUrls: [webOrigin, ...props.devOrigins],
+        logoutUrls: [webOrigin, ...props.devOrigins],
       },
       accessTokenValidity: Duration.hours(1),
       idTokenValidity: Duration.hours(1),
@@ -195,7 +195,10 @@ export class ShifutoCloudStack extends Stack {
       environment: { TABLE_NAME: table.tableName },
       logGroup: new logs.LogGroup(this, "PutStateLogGroup", logGroupProps),
     });
-    table.grantWriteData(putStateFn);
+    // Write access alone isn't enough: on a conflicting write (see
+    // putState's ConditionExpression), the handler reads back the current
+    // item to report its updatedAt in the 409 response.
+    table.grantReadWriteData(putStateFn);
 
     const createCheckoutSessionFn = new lambdaNode.NodejsFunction(this, "CreateCheckoutSessionFunction", {
       ...commonLambdaProps,
@@ -243,7 +246,7 @@ export class ShifutoCloudStack extends Stack {
     const httpApi = new apigwv2.HttpApi(this, "HttpApi", {
       apiName: "shifuto-cloud-api",
       corsPreflight: {
-        allowOrigins: [webOrigin, props.devOrigin],
+        allowOrigins: [webOrigin, ...props.devOrigins],
         allowMethods: [apigwv2.CorsHttpMethod.GET, apigwv2.CorsHttpMethod.POST, apigwv2.CorsHttpMethod.PUT, apigwv2.CorsHttpMethod.OPTIONS],
         allowHeaders: ["content-type", "authorization"],
       },
