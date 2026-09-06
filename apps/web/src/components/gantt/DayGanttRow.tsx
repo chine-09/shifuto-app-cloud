@@ -2,8 +2,12 @@ import { useRef, useState } from "react";
 import type { PiiEmployee, TaskSegment, WorkTask } from "@shifuto/shared-core";
 import { percentWithinGrid, timeAtPercent } from "../../lib/timeGrid";
 import { resizeSegmentWithNeighbors } from "../../lib/gantt/resizeSegment";
+import { stepReorder } from "../../lib/gantt/reorderSegments";
 
 const BREAK_COLOR = "#e4e4e7"; // zinc-200
+// Below this many pixels of pointer travel, a press-and-release on a
+// segment's body is treated as a click (open the edit modal), not a drag.
+const MOVE_THRESHOLD_PX = 4;
 
 export function DayGanttRow({
   employee,
@@ -14,6 +18,7 @@ export function DayGanttRow({
   onAddSegment,
   onEditSegment,
   onResizeSegment,
+  onReorderSegments,
 }: {
   employee: PiiEmployee;
   segments: TaskSegment[];
@@ -23,9 +28,10 @@ export function DayGanttRow({
   onAddSegment: () => void;
   onEditSegment: (segment: TaskSegment) => void;
   onResizeSegment: (segment: TaskSegment, startTime: string, endTime: string) => void;
+  onReorderSegments: (segments: TaskSegment[]) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [draftSegments, setDraftSegments] = useState<TaskSegment[] | null>(null);
   // Mutable, up-to-date copy of the dragged segment's own live start/end —
   // read synchronously inside handleMove without waiting on React state.
@@ -38,7 +44,7 @@ export function DayGanttRow({
     if (!rect) return;
 
     liveRef.current = { startTime: segment.startTime, endTime: segment.endTime };
-    setDraggingId(segment.id);
+    setActiveId(segment.id);
 
     function handleMove(ev: PointerEvent) {
       const percent = ((ev.clientX - rect!.left) / rect!.width) * 100;
@@ -72,10 +78,50 @@ export function DayGanttRow({
       window.removeEventListener("pointerup", handleUp);
       const final = liveRef.current;
       liveRef.current = null;
-      setDraggingId(null);
+      setActiveId(null);
       setDraftSegments(null);
       if (final && (final.startTime !== segment.startTime || final.endTime !== segment.endTime)) {
         onResizeSegment(segment, final.startTime, final.endTime);
+      }
+    }
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+  }
+
+  function startMove(segment: TaskSegment, e: React.PointerEvent) {
+    e.stopPropagation();
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const startX = e.clientX;
+    let moved = false;
+    let current = segments;
+    setActiveId(segment.id);
+
+    function handleMove(ev: PointerEvent) {
+      if (!moved) {
+        if (Math.abs(ev.clientX - startX) < MOVE_THRESHOLD_PX) return;
+        moved = true;
+      }
+      const percent = ((ev.clientX - rect!.left) / rect!.width) * 100;
+      const time = timeAtPercent(percent, gridStart, gridEnd);
+      const next = stepReorder(current, segment.id, time);
+      if (next !== current) {
+        current = next;
+        setDraftSegments(current);
+      }
+    }
+
+    function handleUp() {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      setActiveId(null);
+      setDraftSegments(null);
+      if (moved) {
+        onReorderSegments(current);
+      } else {
+        onEditSegment(segment);
       }
     }
 
@@ -102,7 +148,7 @@ export function DayGanttRow({
         title="クリックして時間帯を追加"
       >
         {displaySegments.map((segment) => {
-          const isDragging = segment.id === draggingId;
+          const isActive = segment.id === activeId;
           const left = percentWithinGrid(segment.startTime, gridStart, gridEnd);
           const right = percentWithinGrid(segment.endTime, gridStart, gridEnd);
           const task = segment.taskId ? workTasksById.get(segment.taskId) : undefined;
@@ -113,13 +159,11 @@ export function DayGanttRow({
               key={segment.id}
               role="button"
               tabIndex={0}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!draggingId) onEditSegment(segment);
-              }}
-              className={`group absolute top-0.5 bottom-0.5 flex items-center justify-center overflow-hidden rounded-sm px-1 text-sm font-medium text-zinc-900/80 shadow-sm ${isDragging ? "z-10 ring-2 ring-blue-500" : ""}`}
+              onPointerDown={(e) => startMove(segment, e)}
+              onClick={(e) => e.stopPropagation()}
+              className={`group absolute top-0.5 bottom-0.5 flex cursor-grab items-center justify-center overflow-hidden rounded-sm px-1 text-sm font-medium text-zinc-900/80 shadow-sm active:cursor-grabbing ${isActive ? "z-10 ring-2 ring-blue-500" : ""}`}
               style={{ left: `${left}%`, width: `${Math.max(right - left, 0.5)}%`, backgroundColor: color }}
-              title={`${label} ${segment.startTime}-${segment.endTime}（端をドラッグして時間変更）`}
+              title={`${label} ${segment.startTime}-${segment.endTime}（クリックで編集、中央をドラッグで並べ替え、端をドラッグで時間変更）`}
             >
               <span className="truncate">{label}</span>
               <div

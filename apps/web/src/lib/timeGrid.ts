@@ -5,6 +5,10 @@ function toMinutes(time: string): number {
   return h * 60 + m;
 }
 
+function addMinutesToTime(time: string, minutes: number): string {
+  return toTimeString(toMinutes(time) + minutes);
+}
+
 /** "HH:mm" ticks from gridStart up to (not including) gridEnd, every 15 minutes. */
 export function buildTimeTicks(gridStart: string, gridEnd: string): string[] {
   const startMin = toMinutes(gridStart);
@@ -42,4 +46,4 @@ export function timeAtPercent(percent: number, gridStart: string, gridEnd: strin
   return toTimeString(Math.min(toMinutes(gridEnd), Math.max(startMin, snapped)));
 }
 
-export { SLOT_MINUTES };
+export { SLOT_MINUTES, toMinutes, addMinutesToTime };

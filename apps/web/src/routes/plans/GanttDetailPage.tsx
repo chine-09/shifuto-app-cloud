@@ -48,6 +48,10 @@ export function GanttDetailPage() {
     dispatch({ type: "REPLACE_TASK_SEGMENTS_FOR_DAY", planId, employeeId: segment.employeeId, date, segments: updated });
   }
 
+  function handleReorderSegments(employeeId: EmployeeId, reordered: TaskSegment[]) {
+    dispatch({ type: "REPLACE_TASK_SEGMENTS_FOR_DAY", planId, employeeId, date, segments: reordered });
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <section className="rounded-lg border border-zinc-200 bg-white p-3">
@@ -108,6 +112,7 @@ export function GanttDetailPage() {
                     onAddSegment={() => setEditorTarget({ employeeId: employee.id, segment: null })}
                     onEditSegment={(segment) => setEditorTarget({ employeeId: employee.id, segment })}
                     onResizeSegment={handleResizeSegment}
+                    onReorderSegments={(reordered) => handleReorderSegments(employee.id, reordered)}
                   />
                 ))}
               </div>
@@ -115,7 +120,7 @@ export function GanttDetailPage() {
           </div>
         )}
         <p className="mt-2 text-sm text-zinc-400">
-          行をクリックすると15分単位で時間帯を追加できます。既存の色付きバーはクリックで編集・削除、端をドラッグすると時間を変更できます。
+          行をクリックすると15分単位で時間帯を追加できます。既存の色付きバーはクリックで編集・削除、端をドラッグすると時間を変更、中央をドラッグすると隣の時間帯と順番を入れ替えられます。
         </p>
       </section>
 
