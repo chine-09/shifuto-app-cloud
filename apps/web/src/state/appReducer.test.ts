@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { asEmployeeId, asPlanId } from "@shifuto/shared-core";
+import { asEmployeeId, asPlanId, asWorkTaskId } from "@shifuto/shared-core";
 import { appReducer } from "./appReducer";
 import { createInitialState } from "./types";
 
@@ -77,6 +77,37 @@ describe("appReducer", () => {
     // replacing this plan's leaves again drops the old set for this plan only
     state = appReducer(state, { type: "REPLACE_LEAVES_FOR_PLAN", planId, leaves: [] });
     expect(state.requestedLeaves).toEqual([{ employeeId: emp1, planId: otherPlanId, date: "2026-10-05" }]);
+  });
+
+  it("REPLACE_TASK_SEGMENTS_FOR_DAY replaces that day's segments and syncs the coarse AssignedShift", () => {
+    let state = createInitialState();
+    const taskA = asWorkTaskId("task-a");
+
+    state = appReducer(state, {
+      type: "REPLACE_TASK_SEGMENTS_FOR_DAY",
+      planId,
+      employeeId: emp1,
+      date: "2026-09-02",
+      segments: [
+        { id: "s1", planId, employeeId: emp1, date: "2026-09-02", taskId: taskA, startTime: "09:00", endTime: "12:00" },
+        { id: "s2", planId, employeeId: emp1, date: "2026-09-02", taskId: null, startTime: "12:00", endTime: "13:00" },
+        { id: "s3", planId, employeeId: emp1, date: "2026-09-02", taskId: taskA, startTime: "13:00", endTime: "17:00" },
+      ],
+    });
+    expect(state.taskSegments).toHaveLength(3);
+    expect(state.assignedShifts).toHaveLength(1);
+    expect(state.assignedShifts[0]).toMatchObject({ startTime: "09:00", endTime: "17:00", hours: 7, shiftType: "work" });
+
+    // replacing with an empty list clears both the segments and the derived shift
+    state = appReducer(state, {
+      type: "REPLACE_TASK_SEGMENTS_FOR_DAY",
+      planId,
+      employeeId: emp1,
+      date: "2026-09-02",
+      segments: [],
+    });
+    expect(state.taskSegments).toHaveLength(0);
+    expect(state.assignedShifts).toHaveLength(0);
   });
 
   it("IMPORT_STATE replaces the whole tree and resets isDirty", () => {

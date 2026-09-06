@@ -6,7 +6,9 @@ import type {
   PiiEmployee,
   PlanId,
   RequestedLeave,
+  TaskSegment,
   WorkRule,
+  WorkTask,
 } from "@shifuto/shared-core";
 
 export type AppState = {
@@ -21,6 +23,8 @@ export type AppState = {
   requestedLeaves: RequestedLeave[];
   headcountRequirements: HeadcountRequirement[];
   workRule: WorkRule | null;
+  workTasks: WorkTask[];
+  taskSegments: TaskSegment[];
 };
 
 export function createInitialState(): AppState {
@@ -33,6 +37,8 @@ export function createInitialState(): AppState {
     requestedLeaves: [],
     headcountRequirements: [],
     workRule: null,
+    workTasks: [],
+    taskSegments: [],
   };
 }
 
@@ -55,6 +61,15 @@ export type AppAction =
   | { type: "BULK_UPSERT_HEADCOUNT"; requirements: HeadcountRequirement[] }
   | { type: "DELETE_HEADCOUNT"; id: string }
   | { type: "UPDATE_WORK_RULE"; workRule: WorkRule }
+  | { type: "UPSERT_WORK_TASK"; workTask: WorkTask }
+  | { type: "DELETE_WORK_TASK"; id: WorkTask["id"] }
+  | {
+      type: "REPLACE_TASK_SEGMENTS_FOR_DAY";
+      planId: PlanId;
+      employeeId: EmployeeId;
+      date: string;
+      segments: TaskSegment[];
+    }
   | { type: "IMPORT_STATE"; state: AppState }
   | { type: "MARK_SAVED" }
   | { type: "UNDO" };

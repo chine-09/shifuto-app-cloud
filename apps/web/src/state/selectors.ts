@@ -21,6 +21,10 @@ export function headcountForPlan(state: AppState, planId: PlanId) {
   return state.headcountRequirements.filter((r) => r.planId === planId);
 }
 
+export function taskSegmentsForDay(state: AppState, planId: PlanId, date: string) {
+  return state.taskSegments.filter((s) => s.planId === planId && s.date === date);
+}
+
 export function requiredCountByDate(headcountRequirements: { date: string; requiredCount: number }[]) {
   const map = new Map<string, number>();
   for (const row of headcountRequirements) {

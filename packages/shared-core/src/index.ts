@@ -4,6 +4,7 @@ export * from "./types/ids";
 export * from "./types/pii";
 export * from "./types/anonymized";
 export * from "./types/shift";
+export * from "./types/task";
 export * from "./types/plan";
 export * from "./types/workRule";
 export * from "./types/api";

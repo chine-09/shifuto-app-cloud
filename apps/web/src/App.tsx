@@ -7,6 +7,7 @@ import { PlanLayout } from './routes/plans/PlanLayout'
 import { ShiftsPage } from './routes/plans/ShiftsPage'
 import { HeadcountPage } from './routes/plans/HeadcountPage'
 import { LeavesPage } from './routes/plans/LeavesPage'
+import { GanttDetailPage } from './routes/plans/GanttDetailPage'
 import { Nav } from './components/Nav'
 import { Button } from './components/ui/Button'
 import { AppStateProvider, useAppDispatch, useAppState } from './state/AppStateContext'
@@ -57,6 +58,7 @@ function AppShell() {
           <Route path="/account" element={<AccountPage />} />
           <Route path="/plans/:planId" element={<PlanLayout />}>
             <Route path="shifts" element={<ShiftsPage />} />
+            <Route path="shifts-detail" element={<GanttDetailPage />} />
             <Route path="headcount" element={<HeadcountPage />} />
             <Route path="leaves" element={<LeavesPage />} />
           </Route>

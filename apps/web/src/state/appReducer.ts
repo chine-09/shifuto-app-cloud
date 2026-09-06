@@ -1,3 +1,4 @@
+import { summarizeTaskSegments, type AssignedShift } from "@shifuto/shared-core";
 import type { AppAction, AppState } from "./types";
 
 function upsertById<T extends { id: string }>(list: T[], item: T): T[] {
@@ -130,6 +131,62 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 
     case "UPDATE_WORK_RULE":
       return { ...state, workRule: action.workRule, meta: { ...state.meta, isDirty: true } };
+
+    case "UPSERT_WORK_TASK":
+      return {
+        ...state,
+        workTasks: upsertById(state.workTasks, action.workTask),
+        meta: { ...state.meta, isDirty: true },
+      };
+
+    case "DELETE_WORK_TASK":
+      return {
+        ...state,
+        workTasks: state.workTasks.filter((t) => t.id !== action.id),
+        // Segments referencing a deleted task become breaks rather than
+        // dangling on a task id that no longer resolves to a name/color.
+        taskSegments: state.taskSegments.map((s) => (s.taskId === action.id ? { ...s, taskId: null } : s)),
+        meta: { ...state.meta, isDirty: true },
+      };
+
+    case "REPLACE_TASK_SEGMENTS_FOR_DAY": {
+      const { planId, employeeId, date, segments } = action;
+      const nextTaskSegments = [
+        ...state.taskSegments.filter(
+          (s) => !(s.planId === planId && s.employeeId === employeeId && s.date === date),
+        ),
+        ...segments,
+      ];
+
+      // Keep the coarse AssignedShift (used by violation checks, Excel
+      // export, weekly-hours totals) in sync with what the detailed segments
+      // now imply, so the simple shift table and this detailed view never
+      // disagree about the same day.
+      const summary = summarizeTaskSegments(segments);
+      const key = shiftKey(employeeId, planId, date);
+      const nextAssignedShifts = state.assignedShifts.filter(
+        (s) => shiftKey(s.employeeId, s.planId, s.date) !== key,
+      );
+      if (summary) {
+        const shift: AssignedShift = {
+          employeeId,
+          planId,
+          date,
+          shiftType: "work",
+          startTime: summary.startTime,
+          endTime: summary.endTime,
+          hours: summary.hours,
+        };
+        nextAssignedShifts.push(shift);
+      }
+
+      return {
+        ...state,
+        taskSegments: nextTaskSegments,
+        assignedShifts: nextAssignedShifts,
+        meta: { ...state.meta, isDirty: true },
+      };
+    }
 
     case "IMPORT_STATE":
       return { ...action.state, meta: { ...action.state.meta, isDirty: false } };
