@@ -4,6 +4,10 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // amazon-cognito-identity-js pulls in the Node `buffer` polyfill, which
+  // expects a global `global` — the browser (and Vite's dev server) has
+  // no such binding without this.
+  define: { global: 'globalThis' },
   test: {
     environment: 'jsdom',
     globals: true,

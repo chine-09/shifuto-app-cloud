@@ -170,6 +170,15 @@ export class ShifutoCloudStack extends Stack {
       logGroup: new logs.LogGroup(this, "AutoAssignLogGroup", logGroupProps),
     });
 
+    const getAccountFn = new lambdaNode.NodejsFunction(this, "GetAccountFunction", {
+      ...commonLambdaProps,
+      entry: path.join(__dirname, "../../api/src/handlers/state.ts"),
+      handler: "getAccount",
+      environment: { TABLE_NAME: table.tableName },
+      logGroup: new logs.LogGroup(this, "GetAccountLogGroup", logGroupProps),
+    });
+    table.grantReadData(getAccountFn);
+
     const getStateFn = new lambdaNode.NodejsFunction(this, "GetStateFunction", {
       ...commonLambdaProps,
       entry: path.join(__dirname, "../../api/src/handlers/state.ts"),
@@ -255,6 +264,13 @@ export class ShifutoCloudStack extends Stack {
       path: "/auto-assign",
       methods: [apigwv2.HttpMethod.POST],
       integration: new apigwIntegrations.HttpLambdaIntegration("AutoAssignIntegration", autoAssignFn),
+    });
+
+    httpApi.addRoutes({
+      path: "/account",
+      methods: [apigwv2.HttpMethod.GET],
+      integration: new apigwIntegrations.HttpLambdaIntegration("GetAccountIntegration", getAccountFn),
+      authorizer: jwtAuthorizer,
     });
 
     httpApi.addRoutes({

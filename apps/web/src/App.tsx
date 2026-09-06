@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom'
 import { EmployeesPage } from './routes/EmployeesPage'
 import { PlansPage } from './routes/PlansPage'
 import { SettingsPage } from './routes/SettingsPage'
+import { AccountPage } from './routes/AccountPage'
 import { PlanLayout } from './routes/plans/PlanLayout'
 import { ShiftsPage } from './routes/plans/ShiftsPage'
 import { HeadcountPage } from './routes/plans/HeadcountPage'
@@ -9,8 +10,10 @@ import { LeavesPage } from './routes/plans/LeavesPage'
 import { Nav } from './components/Nav'
 import { Button } from './components/ui/Button'
 import { AppStateProvider, useAppDispatch, useAppState } from './state/AppStateContext'
+import { AuthProvider } from './state/AuthContext'
 import { useBeforeUnloadGuard } from './hooks/useBeforeUnloadGuard'
 import { useUndoShortcut } from './hooks/useUndoShortcut'
+import { useCloudSync } from './hooks/useCloudSync'
 import { exportStateJson } from './lib/io/exportStateJson'
 
 function AppShell() {
@@ -18,6 +21,7 @@ function AppShell() {
   const dispatch = useAppDispatch()
   const { showSaveReminder, dismissSaveReminder } = useBeforeUnloadGuard(state.meta.isDirty)
   useUndoShortcut(dispatch)
+  useCloudSync()
 
   function handleSaveFromReminder() {
     exportStateJson(state)
@@ -50,6 +54,7 @@ function AppShell() {
           <Route path="/" element={<PlansPage />} />
           <Route path="/employees" element={<EmployeesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/account" element={<AccountPage />} />
           <Route path="/plans/:planId" element={<PlanLayout />}>
             <Route path="shifts" element={<ShiftsPage />} />
             <Route path="headcount" element={<HeadcountPage />} />
@@ -63,8 +68,10 @@ function AppShell() {
 
 export default function App() {
   return (
-    <AppStateProvider>
-      <AppShell />
-    </AppStateProvider>
+    <AuthProvider>
+      <AppStateProvider>
+        <AppShell />
+      </AppStateProvider>
+    </AuthProvider>
   )
 }

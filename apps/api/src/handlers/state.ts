@@ -6,6 +6,7 @@ import { jsonResponse } from "../lib/httpResponse";
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const TABLE_NAME = process.env.TABLE_NAME ?? "";
 const STATE_SK = "STATE";
+const ACCOUNT_SK = "ACCOUNT";
 
 // 350KB: comfortably under DynamoDB's 400KB item limit, leaving headroom for
 // the accountId/sk keys and attribute overhead.
@@ -21,6 +22,20 @@ const MAX_BODY_BYTES = 350 * 1024;
  */
 function accountIdFrom(event: APIGatewayProxyEventV2WithJWTAuthorizer): string {
   return event.requestContext.authorizer.jwt.claims.sub as string;
+}
+
+/**
+ * Every logged-in account is "free" until the Stripe webhook writes an
+ * ACCOUNT item with plan="paid" (see billing/stripeWebhook.ts) — a missing
+ * item is not an error, just an account that hasn't subscribed yet.
+ */
+export async function getAccount(event: APIGatewayProxyEventV2WithJWTAuthorizer): Promise<APIGatewayProxyResultV2> {
+  const accountId = accountIdFrom(event);
+  const result = await ddb.send(
+    new GetCommand({ TableName: TABLE_NAME, Key: { accountId, sk: ACCOUNT_SK } }),
+  );
+  const plan = result.Item?.plan === "paid" ? "paid" : "free";
+  return jsonResponse(200, { plan });
 }
 
 export async function getState(event: APIGatewayProxyEventV2WithJWTAuthorizer): Promise<APIGatewayProxyResultV2> {

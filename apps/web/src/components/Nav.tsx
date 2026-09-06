@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { Link } from "react-router-dom";
 import { useAppDispatch, useAppState } from "../state/AppStateContext";
+import { useAuth } from "../state/AuthContext";
 import { exportStateJson } from "../lib/io/exportStateJson";
 import { importStateJson } from "../lib/io/importStateJson";
 import { Button } from "./ui/Button";
@@ -8,6 +9,7 @@ import { Button } from "./ui/Button";
 export function Nav() {
   const state = useAppState();
   const dispatch = useAppDispatch();
+  const { auth } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleExport() {
@@ -44,6 +46,14 @@ export function Nav() {
             </Link>
             <Link to="/settings" className="rounded-md px-3 py-1.5 transition-colors hover:bg-zinc-100 hover:text-zinc-900">
               設定
+            </Link>
+            <Link to="/account" className="rounded-md px-3 py-1.5 transition-colors hover:bg-zinc-100 hover:text-zinc-900">
+              アカウント
+              {auth.status === "signed-in" && (
+                <span className={`ml-1 text-sm ${auth.plan === "paid" ? "text-blue-600" : "text-zinc-400"}`}>
+                  ({auth.plan === "paid" ? "有料" : "無料"})
+                </span>
+              )}
             </Link>
           </nav>
         </div>
