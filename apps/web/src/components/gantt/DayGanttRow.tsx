@@ -1,10 +1,9 @@
 import { useRef, useState } from "react";
 import type { PiiEmployee, TaskSegment, WorkTask } from "@shifuto/shared-core";
 import { percentWithinGrid, timeAtPercent } from "../../lib/timeGrid";
+import { resizeSegmentWithNeighbors } from "../../lib/gantt/resizeSegment";
 
 const BREAK_COLOR = "#e4e4e7"; // zinc-200
-
-type Draft = { segmentId: string; startTime: string; endTime: string };
 
 export function DayGanttRow({
   employee,
@@ -26,7 +25,11 @@ export function DayGanttRow({
   onResizeSegment: (segment: TaskSegment, startTime: string, endTime: string) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [draftSegments, setDraftSegments] = useState<TaskSegment[] | null>(null);
+  // Mutable, up-to-date copy of the dragged segment's own live start/end —
+  // read synchronously inside handleMove without waiting on React state.
+  const liveRef = useRef<{ startTime: string; endTime: string } | null>(null);
 
   function startResize(segment: TaskSegment, edge: "start" | "end", e: React.PointerEvent) {
     e.stopPropagation();
@@ -34,32 +37,53 @@ export function DayGanttRow({
     const rect = trackRef.current?.getBoundingClientRect();
     if (!rect) return;
 
+    liveRef.current = { startTime: segment.startTime, endTime: segment.endTime };
+    setDraggingId(segment.id);
+
     function handleMove(ev: PointerEvent) {
       const percent = ((ev.clientX - rect!.left) / rect!.width) * 100;
       const time = timeAtPercent(percent, gridStart, gridEnd);
-      setDraft((prev) => {
-        const base = prev && prev.segmentId === segment.id ? prev : { segmentId: segment.id, startTime: segment.startTime, endTime: segment.endTime };
-        if (edge === "start") {
-          return time < base.endTime ? { ...base, startTime: time } : base;
-        }
-        return time > base.startTime ? { ...base, endTime: time } : base;
-      });
+      const cur = liveRef.current!;
+
+      let nextStart = cur.startTime;
+      let nextEnd = cur.endTime;
+      if (edge === "start") {
+        if (time >= cur.endTime) return;
+        nextStart = time;
+      } else {
+        if (time <= cur.startTime) return;
+        nextEnd = time;
+      }
+
+      // Dragging past a neighbor's own far boundary (or into another
+      // segment entirely) makes the whole arrangement invalid — ignore this
+      // move rather than let the bar jump somewhere nonsensical; the drag
+      // simply stalls at the last valid position until the pointer returns
+      // to a valid one.
+      const preview = resizeSegmentWithNeighbors(segments, segment.id, nextStart, nextEnd);
+      if (!preview) return;
+
+      liveRef.current = { startTime: nextStart, endTime: nextEnd };
+      setDraftSegments(preview);
     }
 
     function handleUp() {
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
-      setDraft((current) => {
-        if (current && current.segmentId === segment.id) {
-          onResizeSegment(segment, current.startTime, current.endTime);
-        }
-        return null;
-      });
+      const final = liveRef.current;
+      liveRef.current = null;
+      setDraggingId(null);
+      setDraftSegments(null);
+      if (final && (final.startTime !== segment.startTime || final.endTime !== segment.endTime)) {
+        onResizeSegment(segment, final.startTime, final.endTime);
+      }
     }
 
     window.addEventListener("pointermove", handleMove);
     window.addEventListener("pointerup", handleUp);
   }
+
+  const displaySegments = draftSegments ?? segments;
 
   return (
     <div className="flex items-stretch gap-2 border-b border-zinc-100 py-1.5 last:border-b-0">
@@ -77,12 +101,10 @@ export function DayGanttRow({
         className="relative h-9 flex-1 rounded-sm bg-zinc-50 ring-1 ring-inset ring-zinc-200 hover:ring-blue-300"
         title="クリックして時間帯を追加"
       >
-        {segments.map((segment) => {
-          const isDragging = draft?.segmentId === segment.id;
-          const startTime = isDragging ? draft.startTime : segment.startTime;
-          const endTime = isDragging ? draft.endTime : segment.endTime;
-          const left = percentWithinGrid(startTime, gridStart, gridEnd);
-          const right = percentWithinGrid(endTime, gridStart, gridEnd);
+        {displaySegments.map((segment) => {
+          const isDragging = segment.id === draggingId;
+          const left = percentWithinGrid(segment.startTime, gridStart, gridEnd);
+          const right = percentWithinGrid(segment.endTime, gridStart, gridEnd);
           const task = segment.taskId ? workTasksById.get(segment.taskId) : undefined;
           const label = task?.name ?? "休憩";
           const color = task?.color ?? BREAK_COLOR;
@@ -93,11 +115,11 @@ export function DayGanttRow({
               tabIndex={0}
               onClick={(e) => {
                 e.stopPropagation();
-                if (!isDragging) onEditSegment(segment);
+                if (!draggingId) onEditSegment(segment);
               }}
               className={`group absolute top-0.5 bottom-0.5 flex items-center justify-center overflow-hidden rounded-sm px-1 text-sm font-medium text-zinc-900/80 shadow-sm ${isDragging ? "z-10 ring-2 ring-blue-500" : ""}`}
               style={{ left: `${left}%`, width: `${Math.max(right - left, 0.5)}%`, backgroundColor: color }}
-              title={`${label} ${startTime}-${endTime}（端をドラッグして時間変更）`}
+              title={`${label} ${segment.startTime}-${segment.endTime}（端をドラッグして時間変更）`}
             >
               <span className="truncate">{label}</span>
               <div

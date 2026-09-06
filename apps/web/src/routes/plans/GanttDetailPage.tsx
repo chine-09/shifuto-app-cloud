@@ -7,6 +7,7 @@ import { DayGanttRow } from "../../components/gantt/DayGanttRow";
 import { SegmentEditorModal } from "../../components/gantt/SegmentEditorModal";
 import { Input } from "../../components/ui/Input";
 import { buildTimeTicks } from "../../lib/timeGrid";
+import { resizeSegmentWithNeighbors } from "../../lib/gantt/resizeSegment";
 import { usePlanContext } from "./usePlanContext";
 
 type EditorTarget = { employeeId: EmployeeId; segment: TaskSegment | null };
@@ -40,11 +41,10 @@ export function GanttDetailPage() {
   );
 
   function handleResizeSegment(segment: TaskSegment, startTime: string, endTime: string) {
-    const siblings = segments.filter((s) => s.employeeId === segment.employeeId && s.id !== segment.id);
-    const overlaps = siblings.some((s) => startTime < s.endTime && endTime > s.startTime);
-    if (overlaps) return; // silently reject — the bar snaps back since the draft state resets on drop
+    const employeeSegments = segments.filter((s) => s.employeeId === segment.employeeId);
+    const updated = resizeSegmentWithNeighbors(employeeSegments, segment.id, startTime, endTime);
+    if (!updated) return; // invalid (inverted or overlaps a non-adjacent segment) — bar snaps back on drop
 
-    const updated = [...siblings, { ...segment, startTime, endTime }];
     dispatch({ type: "REPLACE_TASK_SEGMENTS_FOR_DAY", planId, employeeId: segment.employeeId, date, segments: updated });
   }
 
