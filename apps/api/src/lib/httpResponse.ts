@@ -1,19 +1,17 @@
 import type { APIGatewayProxyResultV2 } from "aws-lambda";
 
 /**
- * SAM's `Cors` property only configures the auto-generated OPTIONS mock
- * method — it does NOT add CORS headers to a Lambda proxy integration's own
- * responses. Without this, the preflight succeeds but the browser then
- * blocks the actual POST response for missing Access-Control-Allow-Origin,
- * surfacing to the app as an opaque "Failed to fetch".
+ * Unlike the old REST API (SAM `Cors` property), API Gateway HTTP API's
+ * `corsConfiguration` adds CORS headers to every response automatically —
+ * including a Lambda proxy integration's own responses, not just the
+ * auto-generated OPTIONS preflight. Do NOT also set
+ * access-control-allow-origin here: HTTP API would then emit it twice,
+ * which browsers reject as an invalid multi-value header.
  */
 export function jsonResponse(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
   return {
     statusCode,
-    headers: {
-      "content-type": "application/json",
-      "access-control-allow-origin": process.env.ALLOWED_ORIGIN ?? "",
-    },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   };
 }

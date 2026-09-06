@@ -1,0 +1,24 @@
+{
+  "name": "@shifuto/infra",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "tsc -b",
+    "synth": "cdk synth",
+    "diff": "cdk diff",
+    "deploy": "cdk deploy --all",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.268.0",
+    "constructs": "^10.4.2"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2.268.0",
+    "@types/node": "^24.13.3",
+    "typescript": "^5.7.0",
+    "ts-node": "^10.9.2",
+    "source-map-support": "^0.5.21",
+    "esbuild": "^0.24.2"
+  }
+}
