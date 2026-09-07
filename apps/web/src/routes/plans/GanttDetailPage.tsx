@@ -70,11 +70,6 @@ export function GanttDetailPage() {
   function handlePaste(targetEmployeeId: EmployeeId) {
     if (!copiedFrom) return;
     const sourceSegments = segments.filter((s) => s.employeeId === copiedFrom);
-    const targetHasSegments = segments.some((s) => s.employeeId === targetEmployeeId);
-    if (targetHasSegments) {
-      const targetName = employees.find((e) => e.id === targetEmployeeId)?.name ?? "";
-      if (!confirm(`${targetName}さんのこの日のスケジュールを上書きします。よろしいですか？`)) return;
-    }
     const pasted = sourceSegments.map((s) => ({ ...s, id: crypto.randomUUID(), employeeId: targetEmployeeId }));
     dispatch({ type: "REPLACE_TASK_SEGMENTS_FOR_DAY", planId, employeeId: targetEmployeeId, date, segments: pasted });
   }
