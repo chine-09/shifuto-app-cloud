@@ -30,7 +30,7 @@ export function SettingsPage() {
       <section className="card p-3">
         <h2 className="mb-1 text-base font-semibold text-zinc-700">勤務ルール（連続勤務日数・週間労働時間の上限）</h2>
         <p className="mb-2 text-sm text-zinc-500">
-          ここで設定した上限を超えるシフトは、各シフト計画の「シフト表」画面で違反として警告されます。
+          ここで設定した上限を超えるシフトは、各シフト計画の「月間シフト」画面で違反として警告されます。
         </p>
         <WorkRuleForm workRule={state.workRule} />
       </section>

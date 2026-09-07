@@ -15,8 +15,8 @@ export function PlanLayout() {
   const tabs = [
     { href: `/plans/${planId}/leaves`, label: "① 希望休入力" },
     { href: `/plans/${planId}/headcount`, label: "② 必要人数設定" },
-    { href: `/plans/${planId}/shifts`, label: "③ シフト表", hasWarning: violations.length > 0 },
-    { href: `/plans/${planId}/shifts-detail`, label: "④ 分刻み編集（任意）" },
+    { href: `/plans/${planId}/shifts`, label: "③ 月間シフト", hasWarning: violations.length > 0 },
+    { href: `/plans/${planId}/shifts-detail`, label: "④ 日次シフト" },
   ];
 
   return (
