@@ -339,7 +339,7 @@ export function ShiftTable({ planId }: { planId: PlanId }) {
   }
   if (employees.length === 0) {
     return (
-      <section className="rounded-lg border border-zinc-200 bg-white p-4 text-base text-zinc-600">
+      <section className="card p-4 text-base text-zinc-600">
         先に<Link to="/employees" className="text-blue-600 hover:underline">「従業員」画面</Link>で従業員を登録してください。
       </section>
     );
@@ -387,7 +387,7 @@ export function ShiftTable({ planId }: { planId: PlanId }) {
       </p>
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+      <div className="overflow-x-auto card">
         <table className="border-collapse text-sm">
           <thead>
             <tr>

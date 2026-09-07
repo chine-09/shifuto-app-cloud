@@ -32,7 +32,7 @@ export function PlansPage() {
         <p className="mt-1 text-base text-zinc-500">月を選んでシフト表の作成・編集を行います。</p>
       </section>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-4">
+      <section className="card p-4">
         <h2 className="mb-3 text-base font-semibold text-zinc-700">はじめに</h2>
         <ol className="flex flex-col gap-2">
           <OnboardingStep
@@ -54,7 +54,7 @@ export function PlansPage() {
         </ol>
       </section>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-4">
+      <section className="card p-4">
         <h2 className="mb-3 text-base font-semibold text-zinc-700">月を開く / 新規作成</h2>
         {employeeCount === 0 && (
           <p className="mb-3 text-sm text-amber-600">
@@ -79,7 +79,7 @@ export function PlansPage() {
         {sortedPlans.length === 0 ? (
           <p className="text-base text-zinc-500">まだシフト計画がありません。</p>
         ) : (
-          <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white">
+          <ul className="divide-y divide-zinc-200 card">
             {sortedPlans.map((plan) => (
               <li key={plan.id}>
                 <button

@@ -125,7 +125,7 @@ export function AccountPage() {
       <div className="flex flex-col gap-4">
         <h1 className="text-2xl font-bold text-zinc-900">アカウント</h1>
 
-        <section className="rounded-lg border border-zinc-200 bg-white p-3">
+        <section className="card p-3">
           <p className="text-sm text-zinc-600">{auth.email}</p>
           <p className="mt-1 text-sm text-zinc-600">
             現在のプラン：
@@ -168,7 +168,7 @@ export function AccountPage() {
         )}
 
         {auth.plan === "paid" && (
-          <section className="rounded-lg border border-zinc-200 bg-white p-3">
+          <section className="card p-3">
             <h2 className="mb-1 text-base font-semibold text-zinc-700">クラウド自動保存</h2>
             <p className="mb-2 text-sm text-zinc-500">
               変更するたびに自動でクラウドに保存されます（保存ボタンは不要です）。
@@ -195,7 +195,7 @@ export function AccountPage() {
         無料プランはアカウント登録なしでそのまま使えます。有料プラン（クラウド自動保存）を使う場合のみ、ここから登録・ログインしてください。
       </p>
 
-      <section className="max-w-sm rounded-lg border border-zinc-200 bg-white p-4">
+      <section className="max-w-sm card p-4">
         {mode !== "confirm" && (
           <div className="mb-3 flex gap-2 text-sm">
             <button

@@ -46,12 +46,12 @@ export function EmployeesPage() {
         <p className="mt-1 text-base text-zinc-500">シフト表に登場する従業員を登録します。</p>
       </section>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-4">
+      <section className="card p-4">
         <h2 className="mb-3 text-base font-semibold text-zinc-700">新規登録</h2>
         <CreateEmployeeForm nextSortOrder={employees.length} />
       </section>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-4">
+      <section className="card p-4">
         <h2 className="mb-3 text-base font-semibold text-zinc-700">Excelから一括登録</h2>
         <div className="flex flex-wrap items-center gap-3">
           <Button type="button" variant="secondary" onClick={handleDownloadTemplate}>
@@ -89,7 +89,7 @@ export function EmployeesPage() {
               </div>
             </div>
             {employees.map((employee) => (
-              <div key={employee.id} className="rounded-lg border border-zinc-200 bg-white p-4">
+              <div key={employee.id} className="card p-4">
                 <EmployeeEditForm employee={employee} />
               </div>
             ))}

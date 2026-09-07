@@ -13,7 +13,7 @@ export function SettingsPage() {
         <h1 className="text-2xl font-bold text-zinc-900">設定</h1>
       </section>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-3">
+      <section className="card p-3">
         <h2 className="mb-2 text-base font-semibold text-zinc-700">店舗名</h2>
         <label className="flex flex-col gap-1 text-sm text-zinc-500">
           店舗名（Excel出力の見出しに使われます）
@@ -27,7 +27,7 @@ export function SettingsPage() {
         </label>
       </section>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-3">
+      <section className="card p-3">
         <h2 className="mb-1 text-base font-semibold text-zinc-700">勤務ルール（連続勤務日数・週間労働時間の上限）</h2>
         <p className="mb-2 text-sm text-zinc-500">
           ここで設定した上限を超えるシフトは、各シフト計画の「シフト表」画面で違反として警告されます。

@@ -54,12 +54,12 @@ export function GanttDetailPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="rounded-lg border border-zinc-200 bg-white p-3">
+      <section className="card p-3">
         <h2 className="mb-2 text-base font-semibold text-zinc-700">作業種別マスタ</h2>
         <WorkTaskManager workTasks={state.workTasks} />
       </section>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-3">
+      <section className="card p-3">
         <div className="mb-3 flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1 text-sm text-zinc-500">
             日付
