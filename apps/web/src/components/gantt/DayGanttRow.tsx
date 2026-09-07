@@ -3,6 +3,7 @@ import type { PiiEmployee, TaskSegment, WorkTask } from "@shifuto/shared-core";
 import { percentWithinGrid, timeAtPercent } from "../../lib/timeGrid";
 import { resizeSegmentWithNeighbors } from "../../lib/gantt/resizeSegment";
 import { stepReorder } from "../../lib/gantt/reorderSegments";
+import { CopyIcon, PasteIcon, XIcon } from "./icons";
 
 const BREAK_COLOR = "#e4e4e7"; // zinc-200
 // Below this many pixels of pointer travel, a press-and-release on a
@@ -22,6 +23,7 @@ export function DayGanttRow({
   isCopySource,
   canPaste,
   onCopy,
+  onCancelCopy,
   onPaste,
 }: {
   employee: PiiEmployee;
@@ -36,6 +38,7 @@ export function DayGanttRow({
   isCopySource: boolean;
   canPaste: boolean;
   onCopy: () => void;
+  onCancelCopy: () => void;
   onPaste: () => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
@@ -140,7 +143,11 @@ export function DayGanttRow({
   const displaySegments = draftSegments ?? segments;
 
   return (
-    <div className="flex items-stretch gap-2 border-b border-zinc-100 py-1.5 last:border-b-0">
+    <div
+      className={`flex items-stretch gap-2 border-b py-1.5 last:border-b-0 ${
+        isCopySource ? "rounded-sm border-y-2 border-dashed border-brand bg-brand-light" : "border-zinc-100"
+      }`}
+    >
       <div className="w-28 shrink-0 truncate py-1.5 text-sm text-zinc-700" title={employee.name}>
         {employee.name}
       </div>
@@ -188,17 +195,33 @@ export function DayGanttRow({
           );
         })}
       </div>
-      <div className="flex w-16 shrink-0 flex-col items-start justify-center gap-0.5 py-1.5">
+      <div className="flex w-10 shrink-0 items-center justify-center">
         {isCopySource ? (
-          <span className="text-sm font-medium text-blue-700">コピー中</span>
-        ) : (
-          <button type="button" onClick={onCopy} className="text-sm text-zinc-500 hover:text-blue-700 hover:underline">
-            コピー
+          <button
+            type="button"
+            onClick={onCancelCopy}
+            title="コピーを解除"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-light text-brand hover:bg-brand/20"
+          >
+            <XIcon className="h-4 w-4" />
           </button>
-        )}
-        {canPaste && (
-          <button type="button" onClick={onPaste} className="text-sm text-blue-700 hover:underline">
-            貼り付け
+        ) : canPaste ? (
+          <button
+            type="button"
+            onClick={onPaste}
+            title="貼り付け"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-white hover:bg-brand-hover"
+          >
+            <PasteIcon className="h-4 w-4" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onCopy}
+            title="この行をコピー"
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700"
+          >
+            <CopyIcon className="h-4 w-4" />
           </button>
         )}
       </div>

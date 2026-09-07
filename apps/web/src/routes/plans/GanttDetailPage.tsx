@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { daysInMonth, toDateKey, type EmployeeId, type TaskSegment } from "@shifuto/shared-core";
 import { useAppDispatch, useAppState } from "../../state/AppStateContext";
 import { activeEmployees, taskSegmentsForDay } from "../../state/selectors";
@@ -38,6 +38,15 @@ export function GanttDetailPage() {
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [copiedFrom, setCopiedFrom] = useState<EmployeeId | null>(null);
+
+  useEffect(() => {
+    if (!copiedFrom) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setCopiedFrom(null);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [copiedFrom]);
 
   const segments = taskSegmentsForDay(state, planId, date);
   const workTasksById = useMemo(() => new Map(state.workTasks.map((t) => [t.id, t])), [state.workTasks]);
@@ -130,21 +139,6 @@ export function GanttDetailPage() {
           {exportError && <span className="text-sm text-red-600">{exportError}</span>}
         </div>
 
-        {copiedFrom && (
-          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-700">
-            <span>
-              {employees.find((e) => e.id === copiedFrom)?.name ?? ""}さんのこの日のスケジュールをコピー中です。貼り付け先の行で「貼り付け」を押してください。
-            </span>
-            <button
-              type="button"
-              onClick={() => setCopiedFrom(null)}
-              className="ml-auto text-blue-700 underline hover:text-blue-900"
-            >
-              コピーを解除
-            </button>
-          </div>
-        )}
-
         {employees.length === 0 ? (
           <p className="text-sm text-zinc-500">従業員が登録されていません。</p>
         ) : (
@@ -163,7 +157,7 @@ export function GanttDetailPage() {
                     </span>
                   ))}
                 </div>
-                <div className="w-16 shrink-0" />
+                <div className="w-10 shrink-0 text-center">操作</div>
               </div>
               <div className="mt-3">
                 {employees.map((employee) => (
@@ -181,6 +175,7 @@ export function GanttDetailPage() {
                     isCopySource={employee.id === copiedFrom}
                     canPaste={copiedFrom !== null && employee.id !== copiedFrom}
                     onCopy={() => setCopiedFrom(employee.id)}
+                    onCancelCopy={() => setCopiedFrom(null)}
                     onPaste={() => handlePaste(employee.id)}
                   />
                 ))}
@@ -204,6 +199,15 @@ export function GanttDetailPage() {
           editingSegment={editorTarget.segment}
           onClose={() => setEditorTarget(null)}
         />
+      )}
+
+      {copiedFrom && (
+        <div className="fixed bottom-4 right-4 z-20 flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-3 text-sm text-white shadow-lg">
+          <span className="text-brand-light">✓</span>
+          <span>
+            {employees.find((e) => e.id === copiedFrom)?.name ?? ""}のシフトを保持しました。Escキーで解除します。
+          </span>
+        </div>
       )}
     </div>
   );
