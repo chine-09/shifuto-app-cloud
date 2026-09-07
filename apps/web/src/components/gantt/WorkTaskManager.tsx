@@ -3,9 +3,9 @@ import { asWorkTaskId, type WorkTask, type WorkTaskId } from "@shifuto/shared-co
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { useAppDispatch } from "../../state/AppStateContext";
+import { BREAK_COLOR } from "./constants";
 
 const DEFAULT_COLORS = ["#4ade80", "#facc15", "#38bdf8", "#f472b6", "#fb923c", "#a78bfa"];
-const BREAK_COLOR = "#e4e4e7"; // zinc-200, matches DayGanttRow's break color
 
 export type QuickAddSelection = { taskId: WorkTaskId | null } | null;
 

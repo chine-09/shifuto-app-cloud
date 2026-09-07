@@ -4,8 +4,9 @@ import { percentWithinGrid, timeAtPercent } from "../../lib/timeGrid";
 import { resizeSegmentWithNeighbors } from "../../lib/gantt/resizeSegment";
 import { stepReorder } from "../../lib/gantt/reorderSegments";
 import { CopyIcon, PasteIcon, XIcon } from "./icons";
+import { BREAK_COLOR } from "./constants";
+import { usePointerDrag } from "./usePointerDrag";
 
-const BREAK_COLOR = "#e4e4e7"; // zinc-200
 // Below this many pixels of pointer travel, a press-and-release on a
 // segment's body is treated as a click (open the edit modal), not a drag.
 const MOVE_THRESHOLD_PX = 4;
@@ -51,97 +52,84 @@ export function DayGanttRow({
   // Mutable, up-to-date copy of the dragged segment's own live start/end —
   // read synchronously inside handleMove without waiting on React state.
   const liveRef = useRef<{ startTime: string; endTime: string } | null>(null);
+  const startPointerDrag = usePointerDrag(trackRef, gridStart, gridEnd);
 
   function startResize(segment: TaskSegment, edge: "start" | "end", e: React.PointerEvent) {
     e.stopPropagation();
     e.preventDefault();
-    const rect = trackRef.current?.getBoundingClientRect();
-    if (!rect) return;
 
     liveRef.current = { startTime: segment.startTime, endTime: segment.endTime };
     setActiveId(segment.id);
 
-    function handleMove(ev: PointerEvent) {
-      const percent = ((ev.clientX - rect!.left) / rect!.width) * 100;
-      const time = timeAtPercent(percent, gridStart, gridEnd);
-      const cur = liveRef.current!;
+    startPointerDrag(
+      e,
+      (time) => {
+        const cur = liveRef.current!;
 
-      let nextStart = cur.startTime;
-      let nextEnd = cur.endTime;
-      if (edge === "start") {
-        if (time >= cur.endTime) return;
-        nextStart = time;
-      } else {
-        if (time <= cur.startTime) return;
-        nextEnd = time;
-      }
+        let nextStart = cur.startTime;
+        let nextEnd = cur.endTime;
+        if (edge === "start") {
+          if (time >= cur.endTime) return;
+          nextStart = time;
+        } else {
+          if (time <= cur.startTime) return;
+          nextEnd = time;
+        }
 
-      // Dragging past a neighbor's own far boundary (or into another
-      // segment entirely) makes the whole arrangement invalid — ignore this
-      // move rather than let the bar jump somewhere nonsensical; the drag
-      // simply stalls at the last valid position until the pointer returns
-      // to a valid one.
-      const preview = resizeSegmentWithNeighbors(segments, segment.id, nextStart, nextEnd);
-      if (!preview) return;
+        // Dragging past a neighbor's own far boundary (or into another
+        // segment entirely) makes the whole arrangement invalid — ignore
+        // this move rather than let the bar jump somewhere nonsensical;
+        // the drag simply stalls at the last valid position until the
+        // pointer returns to a valid one.
+        const preview = resizeSegmentWithNeighbors(segments, segment.id, nextStart, nextEnd);
+        if (!preview) return;
 
-      liveRef.current = { startTime: nextStart, endTime: nextEnd };
-      setDraftSegments(preview);
-    }
-
-    function handleUp() {
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", handleUp);
-      const final = liveRef.current;
-      liveRef.current = null;
-      setActiveId(null);
-      setDraftSegments(null);
-      if (final && (final.startTime !== segment.startTime || final.endTime !== segment.endTime)) {
-        onResizeSegment(segment, final.startTime, final.endTime);
-      }
-    }
-
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleUp);
+        liveRef.current = { startTime: nextStart, endTime: nextEnd };
+        setDraftSegments(preview);
+      },
+      () => {
+        const final = liveRef.current;
+        liveRef.current = null;
+        setActiveId(null);
+        setDraftSegments(null);
+        if (final && (final.startTime !== segment.startTime || final.endTime !== segment.endTime)) {
+          onResizeSegment(segment, final.startTime, final.endTime);
+        }
+      },
+    );
   }
 
   function startMove(segment: TaskSegment, e: React.PointerEvent) {
     e.stopPropagation();
-    const rect = trackRef.current?.getBoundingClientRect();
-    if (!rect) return;
 
     const startX = e.clientX;
     let moved = false;
     let current = segments;
     setActiveId(segment.id);
 
-    function handleMove(ev: PointerEvent) {
-      if (!moved) {
-        if (Math.abs(ev.clientX - startX) < MOVE_THRESHOLD_PX) return;
-        moved = true;
-      }
-      const percent = ((ev.clientX - rect!.left) / rect!.width) * 100;
-      const time = timeAtPercent(percent, gridStart, gridEnd);
-      const next = stepReorder(current, segment.id, time);
-      if (next !== current) {
-        current = next;
-        setDraftSegments(current);
-      }
-    }
-
-    function handleUp() {
-      window.removeEventListener("pointermove", handleMove);
-      window.removeEventListener("pointerup", handleUp);
-      setActiveId(null);
-      setDraftSegments(null);
-      if (moved) {
-        onReorderSegments(current);
-      } else {
-        onEditSegment(segment);
-      }
-    }
-
-    window.addEventListener("pointermove", handleMove);
-    window.addEventListener("pointerup", handleUp);
+    startPointerDrag(
+      e,
+      (time, ev) => {
+        if (!moved) {
+          if (Math.abs(ev.clientX - startX) < MOVE_THRESHOLD_PX) return;
+          moved = true;
+        }
+        const next = stepReorder(current, segment.id, time);
+        if (next !== current) {
+          current = next;
+          setDraftSegments(current);
+        }
+      },
+      () => {
+        setActiveId(null);
+        setDraftSegments(null);
+        if (moved) {
+          onReorderSegments(current);
+        } else {
+          onEditSegment(segment);
+        }
+      },
+    );
   }
 
   const displaySegments = draftSegments ?? segments;

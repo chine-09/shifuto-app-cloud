@@ -54,7 +54,18 @@ export function useCloudSyncEngine(): {
     for (const r of records) syncedRef.current.set(r.sk, { dataJson: JSON.stringify(r.data), updatedAt });
   }
 
-  /** Every record for `full`, tagged with each one's last-known baseUpdatedAt, plus explicit empty overwrites for DAY records that no longer have any data (so a cleared day doesn't resurrect on the next load). Used to force-push a whole state (conflict resolution, restoring from a file) regardless of the dirty-diff tracked by computeChangedRecords. */
+  /** DAY records that used to be synced but no longer appear in `currentKeys`, as explicit empty overwrites — so a day that's been fully cleared out locally doesn't resurrect on the next load instead of actually clearing in the cloud. */
+  function emptyOverwritesForStaleDayRecords(currentKeys: Set<string>): OutgoingRecord[] {
+    const overwrites: OutgoingRecord[] = [];
+    for (const [sk, tracked] of syncedRef.current) {
+      if (sk.startsWith("DAY#") && !currentKeys.has(sk)) {
+        overwrites.push({ sk, data: { assignedShifts: [], taskSegments: [] }, baseUpdatedAt: tracked.updatedAt });
+      }
+    }
+    return overwrites;
+  }
+
+  /** Every record for `full`, tagged with each one's last-known baseUpdatedAt, plus stale-DAY-record clearing (see emptyOverwritesForStaleDayRecords). Used to force-push a whole state (conflict resolution, restoring from a file) regardless of the dirty-diff tracked by computeChangedRecords. */
   function outgoingRecordsForFullState(full: AppState, baseUpdatedAtBySk?: Map<string, string>): OutgoingRecord[] {
     const currentRecords = toRecords(full);
     const currentKeys = new Set(currentRecords.map((r) => r.sk));
@@ -64,16 +75,10 @@ export function useCloudSyncEngine(): {
       baseUpdatedAt: baseUpdatedAtBySk?.get(r.sk) ?? syncedRef.current.get(r.sk)?.updatedAt ?? null,
     }));
 
-    for (const [sk, tracked] of syncedRef.current) {
-      if (sk.startsWith("DAY#") && !currentKeys.has(sk)) {
-        records.push({ sk, data: { assignedShifts: [], taskSegments: [] }, baseUpdatedAt: tracked.updatedAt });
-      }
-    }
-
-    return records;
+    return [...records, ...emptyOverwritesForStaleDayRecords(currentKeys)];
   }
 
-  /** Records that differ from what's last confirmed synced, plus explicit empty overwrites for DAY records that no longer have any data (so a cleared day doesn't resurrect on the next load). */
+  /** Records that differ from what's last confirmed synced, plus stale-DAY-record clearing (see emptyOverwritesForStaleDayRecords). */
   function computeChangedRecords(current: AppState): OutgoingRecord[] {
     const currentRecords = toRecords(current);
     const currentKeys = new Set(currentRecords.map((r) => r.sk));
@@ -87,13 +92,7 @@ export function useCloudSyncEngine(): {
       }
     }
 
-    for (const [sk, tracked] of syncedRef.current) {
-      if (sk.startsWith("DAY#") && !currentKeys.has(sk)) {
-        changed.push({ sk, data: { assignedShifts: [], taskSegments: [] }, baseUpdatedAt: tracked.updatedAt });
-      }
-    }
-
-    return changed;
+    return [...changed, ...emptyOverwritesForStaleDayRecords(currentKeys)];
   }
 
   useEffect(() => {

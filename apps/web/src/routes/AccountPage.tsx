@@ -24,81 +24,75 @@ export function AccountPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function handleSignUp(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
+  /** Busy-flag wrapper for actions that handle their own errors internally (or truly can't fail) — no error state touched. */
+  async function runWithBusy(fn: () => Promise<void>): Promise<void> {
     setBusy(true);
     try {
-      await signUp(email, password);
-      setMode("confirm");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "登録に失敗しました。");
+      await fn();
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleConfirm(e: React.FormEvent) {
-    e.preventDefault();
+  /** Busy-flag wrapper for actions that surface a user-facing error message on failure. */
+  async function runWithBusyAndError(fn: () => Promise<void>, describeError: (err: unknown) => string): Promise<void> {
     setError(null);
     setBusy(true);
     try {
-      await confirmSignUp(email, code);
-      await signIn(email, password);
+      await fn();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "確認コードが正しくありません。");
+      setError(describeError(err));
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleSignIn(e: React.FormEvent) {
+  function handleSignUp(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    setBusy(true);
-    try {
-      await signIn(email, password);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "メールアドレスまたはパスワードが正しくありません。");
-    } finally {
-      setBusy(false);
-    }
+    runWithBusyAndError(
+      async () => {
+        await signUp(email, password);
+        setMode("confirm");
+      },
+      (err) => (err instanceof Error ? err.message : "登録に失敗しました。"),
+    );
   }
 
-  async function handleUpgrade() {
+  function handleConfirm(e: React.FormEvent) {
+    e.preventDefault();
+    runWithBusyAndError(
+      async () => {
+        await confirmSignUp(email, code);
+        await signIn(email, password);
+      },
+      (err) => (err instanceof Error ? err.message : "確認コードが正しくありません。"),
+    );
+  }
+
+  function handleSignIn(e: React.FormEvent) {
+    e.preventDefault();
+    runWithBusyAndError(
+      () => signIn(email, password),
+      (err) => (err instanceof Error ? err.message : "メールアドレスまたはパスワードが正しくありません。"),
+    );
+  }
+
+  function handleUpgrade() {
     if (auth.status !== "signed-in") return;
-    setError(null);
-    setBusy(true);
-    try {
+    runWithBusyAndError(async () => {
       const { url } = await createCheckoutSession(auth.idToken);
       window.location.href = url;
-    } catch {
-      setError("決済ページの起動に失敗しました。時間をおいて再度お試しください。");
-    } finally {
-      setBusy(false);
-    }
+    }, () => "決済ページの起動に失敗しました。時間をおいて再度お試しください。");
   }
 
-  async function handleOverwriteCloud() {
+  function handleOverwriteCloud() {
     if (!confirm("他の端末・タブで保存された内容を、この端末の内容で上書きします。よろしいですか？")) return;
-    setError(null);
-    setBusy(true);
-    try {
-      await overwriteCloudWithLocal();
-    } finally {
-      setBusy(false);
-    }
+    runWithBusy(overwriteCloudWithLocal);
   }
 
-  async function handleDiscardLocal() {
+  function handleDiscardLocal() {
     if (!confirm("この端末での変更を破棄して、他の端末・タブで保存された内容を読み込みます。よろしいですか？")) return;
-    setError(null);
-    setBusy(true);
-    try {
-      await discardLocalAndUseCloud();
-    } finally {
-      setBusy(false);
-    }
+    runWithBusy(discardLocalAndUseCloud);
   }
 
   function handleBackupToFile() {
@@ -107,21 +101,18 @@ export function AccountPage() {
     exportStateJson(state);
   }
 
-  async function handleRestoreFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleRestoreFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
     if (!confirm("現在のデータ（クラウド上の保存内容を含む）を、選択したファイルの内容で置き換えます。よろしいですか？")) return;
-    setError(null);
-    setBusy(true);
-    try {
-      const imported = await importStateJson(file);
-      await restoreFromFile(imported);
-    } catch {
-      setError("ファイルの読み込みに失敗しました。「バックアップをダウンロード」で保存したファイルを選択してください。");
-    } finally {
-      setBusy(false);
-    }
+    runWithBusyAndError(
+      async () => {
+        const imported = await importStateJson(file);
+        await restoreFromFile(imported);
+      },
+      () => "ファイルの読み込みに失敗しました。「バックアップをダウンロード」で保存したファイルを選択してください。",
+    );
   }
 
   if (auth.status === "loading") {

@@ -34,6 +34,14 @@ export function SegmentEditorModal({
   const [endTime, setEndTime] = useState(editingSegment?.endTime ?? gridEnd);
   const [error, setError] = useState<string | null>(null);
 
+  // The employee's other segments for this day — "other" meaning not the
+  // one currently being edited, if any (undefined editingSegment?.id when
+  // adding a new one excludes nothing, which is what we want). Shared by
+  // both save (to check overlap and rebuild the array) and delete.
+  const otherSegments = taskSegmentsForDay(state, planId, date).filter(
+    (s) => s.employeeId === employeeId && s.id !== editingSegment?.id,
+  );
+
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (startTime >= endTime) {
@@ -41,10 +49,7 @@ export function SegmentEditorModal({
       return;
     }
 
-    const existing = taskSegmentsForDay(state, planId, date).filter(
-      (s) => s.employeeId === employeeId && s.id !== editingSegment?.id,
-    );
-    const overlaps = existing.some((s) => startTime < s.endTime && endTime > s.startTime);
+    const overlaps = otherSegments.some((s) => startTime < s.endTime && endTime > s.startTime);
     if (overlaps) {
       setError("他の作業・休憩の時間帯と重なっています。");
       return;
@@ -64,17 +69,14 @@ export function SegmentEditorModal({
       planId,
       employeeId,
       date,
-      segments: [...existing, segment],
+      segments: [...otherSegments, segment],
     });
     onClose();
   }
 
   function handleDelete() {
     if (!editingSegment) return;
-    const remaining = taskSegmentsForDay(state, planId, date).filter(
-      (s) => s.employeeId === employeeId && s.id !== editingSegment.id,
-    );
-    dispatch({ type: "REPLACE_TASK_SEGMENTS_FOR_DAY", planId, employeeId, date, segments: remaining });
+    dispatch({ type: "REPLACE_TASK_SEGMENTS_FOR_DAY", planId, employeeId, date, segments: otherSegments });
     onClose();
   }
 

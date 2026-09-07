@@ -33,6 +33,7 @@ export function resizeSegmentWithNeighbors(
   const all = [...adjustedOthers, resized];
 
   if (all.some((s) => s.startTime >= s.endTime)) return null;
+  // Nested loop is fine — `all` is one employee's segments for one day, at most a handful.
   for (let i = 0; i < all.length; i++) {
     for (let j = i + 1; j < all.length; j++) {
       if (all[i].startTime < all[j].endTime && all[i].endTime > all[j].startTime) return null;

@@ -1,16 +1,9 @@
 import ExcelJS from "exceljs";
 import { WEEKDAY_LABELS_JA, weekdayOf, type AssignedShift, type PiiEmployee } from "@shifuto/shared-core";
+import { HEADER_FILL, THIN_BORDER, writeTitleRows, downloadWorkbook } from "./xlsxCommon";
 
 const SAT_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDBEAFE" } };
 const SUN_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFCE7F3" } };
-const HEADER_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF4F4F5" } };
-
-const THIN_BORDER: Partial<ExcelJS.Borders> = {
-  top: { style: "thin", color: { argb: "FFD4D4D8" } },
-  bottom: { style: "thin", color: { argb: "FFD4D4D8" } },
-  left: { style: "thin", color: { argb: "FFD4D4D8" } },
-  right: { style: "thin", color: { argb: "FFD4D4D8" } },
-};
 
 function shiftCellText(shift: AssignedShift | undefined): string {
   if (!shift) return "";
@@ -59,17 +52,7 @@ export async function exportShiftsXlsx({
     return undefined;
   }
 
-  // Merging a row's cells keeps only the top-left cell's value, so the
-  // title and store name each need their own unmerged row — putting both
-  // in row 1 and merging over them silently discarded the store name.
-  const titleRow = sheet.addRow([`${year}年${month}月度シフト計画`]);
-  titleRow.font = { bold: true, size: 14 };
-  sheet.mergeCells(1, 1, 1, dateKeys.length + 2);
-
-  const storeRow = sheet.addRow([storeName]);
-  storeRow.font = { size: 11, color: { argb: "FF71717A" } };
-  sheet.mergeCells(2, 1, 2, dateKeys.length + 2);
-
+  writeTitleRows(sheet, `${year}年${month}月度シフト計画`, storeName, dateKeys.length + 2);
   sheet.addRow([]);
 
   const headerRow = sheet.addRow([
@@ -137,16 +120,5 @@ export async function exportShiftsXlsx({
 
   sheet.views = [{ state: "frozen", xSplit: 1, ySplit: 5 }];
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `シフト表_${year}年${month}月.xlsx`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  await downloadWorkbook(workbook, `シフト表_${year}年${month}月.xlsx`);
 }

@@ -68,13 +68,22 @@ export function GanttDetailPage() {
   );
   const employees = allActiveEmployees.filter((e) => scheduledEmployeeIds.has(e.id));
   const workTasksById = useMemo(() => new Map(state.workTasks.map((t) => [t.id, t])), [state.workTasks]);
+  const segmentsByEmployee = useMemo(() => {
+    const map = new Map<EmployeeId, TaskSegment[]>();
+    for (const s of segments) {
+      const list = map.get(s.employeeId) ?? [];
+      list.push(s);
+      map.set(s.employeeId, list);
+    }
+    return map;
+  }, [segments]);
   const hourTicks = useMemo(
     () => buildTimeTicks(gridStart, gridEnd).filter((t) => t.endsWith(":00")),
     [gridStart, gridEnd],
   );
 
   function handleResizeSegment(segment: TaskSegment, startTime: string, endTime: string) {
-    const employeeSegments = segments.filter((s) => s.employeeId === segment.employeeId);
+    const employeeSegments = segmentsByEmployee.get(segment.employeeId) ?? [];
     const updated = resizeSegmentWithNeighbors(employeeSegments, segment.id, startTime, endTime);
     if (!updated) return; // invalid (inverted or overlaps a non-adjacent segment) — bar snaps back on drop
 
@@ -87,14 +96,14 @@ export function GanttDetailPage() {
 
   function handlePaste(targetEmployeeId: EmployeeId) {
     if (!copiedFrom) return;
-    const sourceSegments = segments.filter((s) => s.employeeId === copiedFrom);
+    const sourceSegments = segmentsByEmployee.get(copiedFrom) ?? [];
     const pasted = sourceSegments.map((s) => ({ ...s, id: crypto.randomUUID(), employeeId: targetEmployeeId }));
     dispatch({ type: "REPLACE_TASK_SEGMENTS_FOR_DAY", planId, employeeId: targetEmployeeId, date, segments: pasted });
   }
 
   function handleQuickAdd(employeeId: EmployeeId, startTime: string) {
     if (!quickAddSelection) return;
-    const employeeSegments = segments.filter((s) => s.employeeId === employeeId);
+    const employeeSegments = segmentsByEmployee.get(employeeId) ?? [];
     const endTime = computeQuickAddEnd(employeeSegments, startTime, gridEnd);
     if (!endTime) return; // clicked spot has no room for even a short segment — no-op
     const newSegment: TaskSegment = {
@@ -219,7 +228,7 @@ export function GanttDetailPage() {
                   <DayGanttRow
                     key={employee.id}
                     employee={employee}
-                    segments={segments.filter((s) => s.employeeId === employee.id)}
+                    segments={segmentsByEmployee.get(employee.id) ?? []}
                     workTasksById={workTasksById}
                     gridStart={gridStart}
                     gridEnd={gridEnd}

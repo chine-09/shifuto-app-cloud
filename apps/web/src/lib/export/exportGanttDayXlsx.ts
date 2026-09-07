@@ -1,16 +1,9 @@
 import ExcelJS from "exceljs";
 import type { PiiEmployee, TaskSegment, WorkTask } from "@shifuto/shared-core";
 import { buildTimeTicks } from "../timeGrid";
+import { HEADER_FILL, THIN_BORDER, writeTitleRows, downloadWorkbook } from "./xlsxCommon";
 
 const BREAK_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE4E4E7" } };
-const HEADER_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF4F4F5" } };
-
-const THIN_BORDER: Partial<ExcelJS.Borders> = {
-  top: { style: "thin", color: { argb: "FFD4D4D8" } },
-  bottom: { style: "thin", color: { argb: "FFD4D4D8" } },
-  left: { style: "thin", color: { argb: "FFD4D4D8" } },
-  right: { style: "thin", color: { argb: "FFD4D4D8" } },
-};
 
 /** "#4ade80" -> "FF4ADE80" (ExcelJS ARGB, opaque). */
 function toArgb(cssHexColor: string): string {
@@ -56,14 +49,7 @@ export async function exportGanttDayXlsx({
   sheet.getColumn(1).width = 18;
   for (let i = 0; i < ticks.length; i++) sheet.getColumn(i + 2).width = 3;
 
-  const titleRow = sheet.addRow([`${date} 分刻みシフト`]);
-  titleRow.font = { bold: true, size: 14 };
-  sheet.mergeCells(1, 1, 1, ticks.length + 1);
-
-  const storeRow = sheet.addRow([storeName]);
-  storeRow.font = { size: 11, color: { argb: "FF71717A" } };
-  sheet.mergeCells(2, 1, 2, ticks.length + 1);
-
+  writeTitleRows(sheet, `${date} 分刻みシフト`, storeName, ticks.length + 1);
   sheet.addRow([]);
 
   const headerRowIndex = 4;
@@ -119,16 +105,5 @@ export async function exportGanttDayXlsx({
 
   sheet.views = [{ state: "frozen", xSplit: 1, ySplit: headerRowIndex }];
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `分刻みシフト_${date}.xlsx`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  await downloadWorkbook(workbook, `分刻みシフト_${date}.xlsx`);
 }
