@@ -37,6 +37,7 @@ export function GanttDetailPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [copiedFrom, setCopiedFrom] = useState<EmployeeId | null>(null);
 
   const segments = taskSegmentsForDay(state, planId, date);
   const workTasksById = useMemo(() => new Map(state.workTasks.map((t) => [t.id, t])), [state.workTasks]);
@@ -55,6 +56,18 @@ export function GanttDetailPage() {
 
   function handleReorderSegments(employeeId: EmployeeId, reordered: TaskSegment[]) {
     dispatch({ type: "REPLACE_TASK_SEGMENTS_FOR_DAY", planId, employeeId, date, segments: reordered });
+  }
+
+  function handlePaste(targetEmployeeId: EmployeeId) {
+    if (!copiedFrom) return;
+    const sourceSegments = segments.filter((s) => s.employeeId === copiedFrom);
+    const targetHasSegments = segments.some((s) => s.employeeId === targetEmployeeId);
+    if (targetHasSegments) {
+      const targetName = employees.find((e) => e.id === targetEmployeeId)?.name ?? "";
+      if (!confirm(`${targetName}さんのこの日のスケジュールを上書きします。よろしいですか？`)) return;
+    }
+    const pasted = sourceSegments.map((s) => ({ ...s, id: crypto.randomUUID(), employeeId: targetEmployeeId }));
+    dispatch({ type: "REPLACE_TASK_SEGMENTS_FOR_DAY", planId, employeeId: targetEmployeeId, date, segments: pasted });
   }
 
   async function handleExport() {
@@ -96,7 +109,10 @@ export function GanttDetailPage() {
               value={date}
               min={toDateKey(monthDates[0])}
               max={toDateKey(monthDates[monthDates.length - 1])}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => {
+                setDate(e.target.value);
+                setCopiedFrom(null);
+              }}
             />
           </label>
           <label className="flex flex-col gap-1 text-sm text-zinc-500">
@@ -113,6 +129,21 @@ export function GanttDetailPage() {
           {exportMessage && <span className="text-sm text-green-600">{exportMessage}</span>}
           {exportError && <span className="text-sm text-red-600">{exportError}</span>}
         </div>
+
+        {copiedFrom && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-700">
+            <span>
+              {employees.find((e) => e.id === copiedFrom)?.name ?? ""}さんのこの日のスケジュールをコピー中です。貼り付け先の行で「貼り付け」を押してください。
+            </span>
+            <button
+              type="button"
+              onClick={() => setCopiedFrom(null)}
+              className="ml-auto text-blue-700 underline hover:text-blue-900"
+            >
+              コピーを解除
+            </button>
+          </div>
+        )}
 
         {employees.length === 0 ? (
           <p className="text-sm text-zinc-500">従業員が登録されていません。</p>
@@ -132,6 +163,7 @@ export function GanttDetailPage() {
                     </span>
                   ))}
                 </div>
+                <div className="w-16 shrink-0" />
               </div>
               <div className="mt-3">
                 {employees.map((employee) => (
@@ -146,6 +178,10 @@ export function GanttDetailPage() {
                     onEditSegment={(segment) => setEditorTarget({ employeeId: employee.id, segment })}
                     onResizeSegment={handleResizeSegment}
                     onReorderSegments={(reordered) => handleReorderSegments(employee.id, reordered)}
+                    isCopySource={employee.id === copiedFrom}
+                    canPaste={copiedFrom !== null && employee.id !== copiedFrom}
+                    onCopy={() => setCopiedFrom(employee.id)}
+                    onPaste={() => handlePaste(employee.id)}
                   />
                 ))}
               </div>

@@ -19,6 +19,10 @@ export function DayGanttRow({
   onEditSegment,
   onResizeSegment,
   onReorderSegments,
+  isCopySource,
+  canPaste,
+  onCopy,
+  onPaste,
 }: {
   employee: PiiEmployee;
   segments: TaskSegment[];
@@ -29,6 +33,10 @@ export function DayGanttRow({
   onEditSegment: (segment: TaskSegment) => void;
   onResizeSegment: (segment: TaskSegment, startTime: string, endTime: string) => void;
   onReorderSegments: (segments: TaskSegment[]) => void;
+  isCopySource: boolean;
+  canPaste: boolean;
+  onCopy: () => void;
+  onPaste: () => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -179,6 +187,20 @@ export function DayGanttRow({
             </div>
           );
         })}
+      </div>
+      <div className="flex w-16 shrink-0 flex-col items-start justify-center gap-0.5 py-1.5">
+        {isCopySource ? (
+          <span className="text-sm font-medium text-blue-700">コピー中</span>
+        ) : (
+          <button type="button" onClick={onCopy} className="text-sm text-zinc-500 hover:text-blue-700 hover:underline">
+            コピー
+          </button>
+        )}
+        {canPaste && (
+          <button type="button" onClick={onPaste} className="text-sm text-blue-700 hover:underline">
+            貼り付け
+          </button>
+        )}
       </div>
     </div>
   );
