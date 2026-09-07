@@ -5,9 +5,11 @@ import { activeEmployees, taskSegmentsForDay } from "../../state/selectors";
 import { WorkTaskManager } from "../../components/gantt/WorkTaskManager";
 import { DayGanttRow } from "../../components/gantt/DayGanttRow";
 import { SegmentEditorModal } from "../../components/gantt/SegmentEditorModal";
+import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { buildTimeTicks } from "../../lib/timeGrid";
 import { resizeSegmentWithNeighbors } from "../../lib/gantt/resizeSegment";
+import { exportGanttDayXlsx } from "../../lib/export/exportGanttDayXlsx";
 import { usePlanContext } from "./usePlanContext";
 
 type EditorTarget = { employeeId: EmployeeId; segment: TaskSegment | null };
@@ -32,6 +34,9 @@ export function GanttDetailPage() {
   const [gridStart, setGridStart] = useState("08:00");
   const [gridEnd, setGridEnd] = useState("22:00");
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const segments = taskSegmentsForDay(state, planId, date);
   const workTasksById = useMemo(() => new Map(state.workTasks.map((t) => [t.id, t])), [state.workTasks]);
@@ -50,6 +55,29 @@ export function GanttDetailPage() {
 
   function handleReorderSegments(employeeId: EmployeeId, reordered: TaskSegment[]) {
     dispatch({ type: "REPLACE_TASK_SEGMENTS_FOR_DAY", planId, employeeId, date, segments: reordered });
+  }
+
+  async function handleExport() {
+    setIsExporting(true);
+    setExportError(null);
+    setExportMessage(null);
+    try {
+      await exportGanttDayXlsx({
+        storeName: state.meta.storeName,
+        date,
+        employees,
+        segments,
+        workTasks: state.workTasks,
+        gridStart,
+        gridEnd,
+      });
+      setExportMessage("✓ ダウンロードフォルダに出力しました");
+      setTimeout(() => setExportMessage(null), 4000);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "エクスポートに失敗しました");
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   return (
@@ -79,6 +107,11 @@ export function GanttDetailPage() {
             表示終了
             <Input type="time" value={gridEnd} onChange={(e) => setGridEnd(e.target.value)} />
           </label>
+          <Button type="button" variant="secondary" onClick={handleExport} disabled={isExporting || employees.length === 0}>
+            {isExporting ? "出力中..." : "Excelに出力"}
+          </Button>
+          {exportMessage && <span className="text-sm text-green-600">{exportMessage}</span>}
+          {exportError && <span className="text-sm text-red-600">{exportError}</span>}
         </div>
 
         {employees.length === 0 ? (
