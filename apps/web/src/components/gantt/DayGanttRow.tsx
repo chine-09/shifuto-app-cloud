@@ -25,6 +25,8 @@ export function DayGanttRow({
   onCopy,
   onCancelCopy,
   onPaste,
+  quickAddActive,
+  onQuickAdd,
 }: {
   employee: PiiEmployee;
   segments: TaskSegment[];
@@ -40,6 +42,8 @@ export function DayGanttRow({
   onCopy: () => void;
   onCancelCopy: () => void;
   onPaste: () => void;
+  quickAddActive: boolean;
+  onQuickAdd: (startTime: string) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -155,12 +159,23 @@ export function DayGanttRow({
         ref={trackRef}
         role="button"
         tabIndex={0}
-        onClick={onAddSegment}
+        onClick={(e) => {
+          if (!quickAddActive) {
+            onAddSegment();
+            return;
+          }
+          const rect = trackRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          const percent = ((e.clientX - rect.left) / rect.width) * 100;
+          onQuickAdd(timeAtPercent(percent, gridStart, gridEnd));
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") onAddSegment();
         }}
-        className="relative h-9 flex-1 rounded-sm bg-zinc-50 ring-1 ring-inset ring-zinc-200 hover:ring-blue-300"
-        title="クリックして時間帯を追加"
+        className={`relative h-9 flex-1 rounded-sm bg-zinc-50 ring-1 ring-inset ring-zinc-200 ${
+          quickAddActive ? "cursor-copy hover:ring-brand" : "hover:ring-blue-300"
+        }`}
+        title={quickAddActive ? "クリックして1時間分配置" : "クリックして時間帯を追加"}
       >
         {displaySegments.map((segment) => {
           const isActive = segment.id === activeId;

@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { daysInMonth, toDateKey, type EmployeeId, type TaskSegment } from "@shifuto/shared-core";
 import { useAppDispatch, useAppState } from "../../state/AppStateContext";
 import { activeEmployees, taskSegmentsForDay } from "../../state/selectors";
-import { WorkTaskManager } from "../../components/gantt/WorkTaskManager";
+import { WorkTaskManager, type QuickAddSelection } from "../../components/gantt/WorkTaskManager";
 import { DayGanttRow } from "../../components/gantt/DayGanttRow";
 import { SegmentEditorModal } from "../../components/gantt/SegmentEditorModal";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { buildTimeTicks } from "../../lib/timeGrid";
 import { resizeSegmentWithNeighbors } from "../../lib/gantt/resizeSegment";
+import { computeQuickAddEnd } from "../../lib/gantt/quickAddSegment";
 import { exportGanttDayXlsx } from "../../lib/export/exportGanttDayXlsx";
 import { usePlanContext } from "./usePlanContext";
 
@@ -38,15 +39,19 @@ export function GanttDetailPage() {
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const [copiedFrom, setCopiedFrom] = useState<EmployeeId | null>(null);
+  const [quickAddSelection, setQuickAddSelection] = useState<QuickAddSelection>(null);
 
   useEffect(() => {
-    if (!copiedFrom) return;
+    if (!copiedFrom && !quickAddSelection) return;
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setCopiedFrom(null);
+      if (e.key === "Escape") {
+        setCopiedFrom(null);
+        setQuickAddSelection(null);
+      }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [copiedFrom]);
+  }, [copiedFrom, quickAddSelection]);
 
   const segments = taskSegmentsForDay(state, planId, date);
   // The daily Gantt is for building out the shift of people already scheduled
@@ -87,6 +92,29 @@ export function GanttDetailPage() {
     dispatch({ type: "REPLACE_TASK_SEGMENTS_FOR_DAY", planId, employeeId: targetEmployeeId, date, segments: pasted });
   }
 
+  function handleQuickAdd(employeeId: EmployeeId, startTime: string) {
+    if (!quickAddSelection) return;
+    const employeeSegments = segments.filter((s) => s.employeeId === employeeId);
+    const endTime = computeQuickAddEnd(employeeSegments, startTime, gridEnd);
+    if (!endTime) return; // clicked spot has no room for even a short segment — no-op
+    const newSegment: TaskSegment = {
+      id: crypto.randomUUID(),
+      planId,
+      employeeId,
+      date,
+      taskId: quickAddSelection.taskId,
+      startTime,
+      endTime,
+    };
+    dispatch({
+      type: "REPLACE_TASK_SEGMENTS_FOR_DAY",
+      planId,
+      employeeId,
+      date,
+      segments: [...employeeSegments, newSegment],
+    });
+  }
+
   async function handleExport() {
     setIsExporting(true);
     setExportError(null);
@@ -113,8 +141,22 @@ export function GanttDetailPage() {
   return (
     <div className="flex flex-col gap-4">
       <section className="card p-3">
-        <h2 className="mb-2 text-base font-semibold text-zinc-700">作業種別マスタ</h2>
-        <WorkTaskManager workTasks={state.workTasks} />
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-zinc-700">作業種別マスタ（クリックして選択）</h2>
+          {quickAddSelection && (
+            <span className="rounded-full bg-brand-light px-3 py-1 text-sm font-medium text-brand">
+              「{quickAddSelection.taskId ? (workTasksById.get(quickAddSelection.taskId)?.name ?? "") : "休憩"}」を入力中 (Escで解除)
+            </span>
+          )}
+        </div>
+        <WorkTaskManager
+          workTasks={state.workTasks}
+          quickAddSelection={quickAddSelection}
+          onSelectQuickAdd={(selection) => {
+            setQuickAddSelection(selection);
+            setCopiedFrom(null);
+          }}
+        />
       </section>
 
       <section className="card p-3">
@@ -129,6 +171,7 @@ export function GanttDetailPage() {
               onChange={(e) => {
                 setDate(e.target.value);
                 setCopiedFrom(null);
+                setQuickAddSelection(null);
               }}
             />
           </label>
@@ -186,9 +229,14 @@ export function GanttDetailPage() {
                     onReorderSegments={(reordered) => handleReorderSegments(employee.id, reordered)}
                     isCopySource={employee.id === copiedFrom}
                     canPaste={copiedFrom !== null && employee.id !== copiedFrom}
-                    onCopy={() => setCopiedFrom(employee.id)}
+                    onCopy={() => {
+                      setCopiedFrom(employee.id);
+                      setQuickAddSelection(null);
+                    }}
                     onCancelCopy={() => setCopiedFrom(null)}
                     onPaste={() => handlePaste(employee.id)}
+                    quickAddActive={quickAddSelection !== null}
+                    onQuickAdd={(startTime) => handleQuickAdd(employee.id, startTime)}
                   />
                 ))}
               </div>
