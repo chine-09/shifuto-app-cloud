@@ -27,7 +27,7 @@ export function GanttDetailPage() {
   const { planId, plan } = usePlanContext();
   const state = useAppState();
   const dispatch = useAppDispatch();
-  const employees = activeEmployees(state);
+  const allActiveEmployees = activeEmployees(state);
   const monthDates = useMemo(() => daysInMonth(plan.year, plan.month), [plan.year, plan.month]);
 
   const [date, setDate] = useState(() => toDateKey(monthDates[0]));
@@ -49,6 +49,19 @@ export function GanttDetailPage() {
   }, [copiedFrom]);
 
   const segments = taskSegmentsForDay(state, planId, date);
+  // The daily Gantt is for building out the shift of people already scheduled
+  // that day (via the monthly shift table) — showing everyone active,
+  // scheduled or not, made it look like unscheduled staff were working.
+  const scheduledEmployeeIds = useMemo(
+    () =>
+      new Set(
+        state.assignedShifts
+          .filter((s) => s.planId === planId && s.date === date && s.shiftType === "work")
+          .map((s) => s.employeeId),
+      ),
+    [state.assignedShifts, planId, date],
+  );
+  const employees = allActiveEmployees.filter((e) => scheduledEmployeeIds.has(e.id));
   const workTasksById = useMemo(() => new Map(state.workTasks.map((t) => [t.id, t])), [state.workTasks]);
   const hourTicks = useMemo(
     () => buildTimeTicks(gridStart, gridEnd).filter((t) => t.endsWith(":00")),
@@ -134,8 +147,12 @@ export function GanttDetailPage() {
           {exportError && <span className="text-sm text-red-600">{exportError}</span>}
         </div>
 
-        {employees.length === 0 ? (
+        {allActiveEmployees.length === 0 ? (
           <p className="text-sm text-zinc-500">従業員が登録されていません。</p>
+        ) : employees.length === 0 ? (
+          <p className="text-sm text-zinc-500">
+            この日は「月間シフト」で出勤が登録されている従業員がいません。先に月間シフトで出退勤を登録してください。
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <div className="min-w-[600px]">
