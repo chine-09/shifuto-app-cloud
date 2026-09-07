@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAuth } from "../state/AuthContext";
 import { useAppDispatch, useAppState } from "../state/AppStateContext";
 import { useCloudSync } from "../state/CloudSyncContext";
 import { createCheckoutSession } from "../lib/api/cloudStateClient";
+import { exportStateJson } from "../lib/io/exportStateJson";
+import { importStateJson } from "../lib/io/importStateJson";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 
@@ -12,7 +14,15 @@ export function AccountPage() {
   const { auth, signUp, confirmSignUp, resendConfirmationCode, signIn, signOut, refreshPlan } = useAuth();
   const state = useAppState();
   const dispatch = useAppDispatch();
-  const { status: syncStatus, conflictUpdatedAt, loadFromCloud, overwriteCloudWithLocal, discardLocalAndUseCloud } = useCloudSync();
+  const {
+    status: syncStatus,
+    conflictUpdatedAt,
+    loadFromCloud,
+    overwriteCloudWithLocal,
+    discardLocalAndUseCloud,
+    restoreFromFile,
+  } = useCloudSync();
+  const restoreFileInputRef = useRef<HTMLInputElement>(null);
 
   const [mode, setMode] = useState<Mode>("signIn");
   const [email, setEmail] = useState("");
@@ -116,6 +126,29 @@ export function AccountPage() {
     }
   }
 
+  function handleBackupToFile() {
+    // A plain backup copy — not tied to the cloud save/dirty flag, so this
+    // never risks marking pending cloud changes as clean.
+    exportStateJson(state);
+  }
+
+  async function handleRestoreFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!confirm("現在のデータ（クラウド上の保存内容を含む）を、選択したファイルの内容で置き換えます。よろしいですか？")) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const imported = await importStateJson(file);
+      await restoreFromFile(imported);
+    } catch {
+      setError("ファイルの読み込みに失敗しました。「バックアップをダウンロード」で保存したファイルを選択してください。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (auth.status === "loading") {
     return <p className="text-sm text-zinc-500">読み込み中...</p>;
   }
@@ -180,6 +213,31 @@ export function AccountPage() {
             <Button type="button" variant="secondary" onClick={handleLoadFromCloud} disabled={busy}>
               クラウドの保存データを読み込む
             </Button>
+          </section>
+        )}
+
+        {auth.plan === "paid" && (
+          <section className="card p-3">
+            <h2 className="mb-1 text-base font-semibold text-zinc-700">バックアップ</h2>
+            <p className="mb-2 text-sm text-zinc-500">
+              手元にJSONファイルとして控えておいたり、無料プラン時代のデータや別のバックアップから復元したい場合はこちら。
+              復元すると、内容はそのままクラウドにも自動で反映されます。
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Button type="button" variant="secondary" onClick={handleBackupToFile} disabled={busy}>
+                バックアップをダウンロード
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => restoreFileInputRef.current?.click()} disabled={busy}>
+                ファイルから復元
+              </Button>
+              <input
+                ref={restoreFileInputRef}
+                type="file"
+                accept="application/json"
+                hidden
+                onChange={handleRestoreFile}
+              />
+            </div>
           </section>
         )}
 

@@ -33,21 +33,43 @@ type SyncedEntry = { dataJson: string; updatedAt: string };
  */
 export function useCloudSyncEngine(): {
   status: CloudSyncStatus;
+  lastSavedAt: string | null;
   conflictUpdatedAt: string | null;
   loadFromCloud: () => Promise<AppState | null>;
   overwriteCloudWithLocal: () => Promise<void>;
   discardLocalAndUseCloud: () => Promise<void>;
+  restoreFromFile: (imported: AppState) => Promise<void>;
 } {
   const { auth } = useAuth();
   const state = useAppState();
   const dispatch = useAppDispatch();
   const [status, setStatus] = useState<CloudSyncStatus>("idle");
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [conflictRecords, setConflictRecords] = useState<StoredRecord[] | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncedRef = useRef<Map<string, SyncedEntry>>(new Map());
 
   function recordSynced(records: { sk: string; data: unknown }[], updatedAt: string) {
     for (const r of records) syncedRef.current.set(r.sk, { dataJson: JSON.stringify(r.data), updatedAt });
+  }
+
+  /** Every record for `full`, tagged with each one's last-known baseUpdatedAt, plus explicit empty overwrites for DAY records that no longer have any data (so a cleared day doesn't resurrect on the next load). Used to force-push a whole state (conflict resolution, restoring from a file) regardless of the dirty-diff tracked by computeChangedRecords. */
+  function outgoingRecordsForFullState(full: AppState, baseUpdatedAtBySk?: Map<string, string>): OutgoingRecord[] {
+    const currentRecords = toRecords(full);
+    const currentKeys = new Set(currentRecords.map((r) => r.sk));
+    const records: OutgoingRecord[] = currentRecords.map((r) => ({
+      sk: r.sk,
+      data: r.data,
+      baseUpdatedAt: baseUpdatedAtBySk?.get(r.sk) ?? syncedRef.current.get(r.sk)?.updatedAt ?? null,
+    }));
+
+    for (const [sk, tracked] of syncedRef.current) {
+      if (sk.startsWith("DAY#") && !currentKeys.has(sk)) {
+        records.push({ sk, data: { assignedShifts: [], taskSegments: [] }, baseUpdatedAt: tracked.updatedAt });
+      }
+    }
+
+    return records;
   }
 
   /** Records that differ from what's last confirmed synced, plus explicit empty overwrites for DAY records that no longer have any data (so a cleared day doesn't resurrect on the next load). */
@@ -92,6 +114,7 @@ export function useCloudSyncEngine(): {
         recordSynced(changed, updatedAt);
         dispatch({ type: "MARK_SAVED" });
         setStatus("saved");
+        setLastSavedAt(updatedAt);
       } catch (err) {
         if (err instanceof SaveConflictError) {
           setConflictRecords(err.records);
@@ -139,16 +162,13 @@ export function useCloudSyncEngine(): {
     if (auth.status !== "signed-in") return;
     setStatus("saving");
     const conflictUpdatedAtBySk = new Map((conflictRecords ?? []).map((r) => [r.sk, r.updatedAt]));
-    const all: OutgoingRecord[] = toRecords(state).map((r) => ({
-      sk: r.sk,
-      data: r.data,
-      baseUpdatedAt: conflictUpdatedAtBySk.get(r.sk) ?? syncedRef.current.get(r.sk)?.updatedAt ?? null,
-    }));
+    const all = outgoingRecordsForFullState(state, conflictUpdatedAtBySk);
     try {
       const { updatedAt } = await saveCloudState(auth.idToken, all);
       recordSynced(all, updatedAt);
       dispatch({ type: "MARK_SAVED" });
       setStatus("saved");
+      setLastSavedAt(updatedAt);
       setConflictRecords(null);
     } catch (err) {
       if (err instanceof SaveConflictError) {
@@ -161,10 +181,43 @@ export function useCloudSyncEngine(): {
     }
   }
 
+  /**
+   * Restoring a JSON backup (e.g. right after upgrading from the free tier,
+   * or recovering from a mistake) replaces the whole state and — unlike a
+   * normal edit — IMPORT_STATE marks it clean (`isDirty: false`), so the
+   * debounced auto-save effect would never notice it needs pushing. Force a
+   * push of every record immediately, then apply the imported state once the
+   * cloud copy is confirmed current.
+   */
+  async function restoreFromFile(imported: AppState): Promise<void> {
+    if (auth.status !== "signed-in") {
+      dispatch({ type: "IMPORT_STATE", state: imported });
+      return;
+    }
+    setStatus("saving");
+    const all = outgoingRecordsForFullState(imported);
+    try {
+      const { updatedAt } = await saveCloudState(auth.idToken, all);
+      recordSynced(all, updatedAt);
+      setStatus("saved");
+      setLastSavedAt(updatedAt);
+      setConflictRecords(null);
+      dispatch({ type: "IMPORT_STATE", state: imported });
+    } catch (err) {
+      if (err instanceof SaveConflictError) {
+        setConflictRecords(err.records);
+        setStatus("conflict");
+      } else {
+        setStatus("error");
+      }
+      throw err;
+    }
+  }
+
   const conflictUpdatedAt =
     conflictRecords && conflictRecords.length > 0
       ? conflictRecords.reduce((latest, r) => (r.updatedAt > latest ? r.updatedAt : latest), conflictRecords[0].updatedAt)
       : null;
 
-  return { status, conflictUpdatedAt, loadFromCloud, overwriteCloudWithLocal, discardLocalAndUseCloud };
+  return { status, lastSavedAt, conflictUpdatedAt, loadFromCloud, overwriteCloudWithLocal, discardLocalAndUseCloud, restoreFromFile };
 }

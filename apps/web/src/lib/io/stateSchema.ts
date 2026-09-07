@@ -48,6 +48,22 @@ const workRuleSchema = z
   })
   .nullable();
 
+const workTaskSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  color: z.string(),
+});
+
+const taskSegmentSchema = z.object({
+  id: z.string(),
+  planId: z.string(),
+  employeeId: z.string(),
+  date: z.string(),
+  taskId: z.string().nullable(),
+  startTime: z.string(),
+  endTime: z.string(),
+});
+
 export const appStateSchema = z.object({
   version: z.literal(1),
   meta: z.object({
@@ -60,6 +76,10 @@ export const appStateSchema = z.object({
   requestedLeaves: z.array(leaveSchema),
   headcountRequirements: z.array(headcountSchema),
   workRule: workRuleSchema,
+  // Added after the initial export format shipped — optional so backups
+  // made before the Gantt feature existed still import cleanly.
+  workTasks: z.array(workTaskSchema).optional().default([]),
+  taskSegments: z.array(taskSegmentSchema).optional().default([]),
 });
 
 export function parseAppState(json: unknown): AppState {
