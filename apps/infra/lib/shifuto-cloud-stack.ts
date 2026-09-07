@@ -197,8 +197,13 @@ export class ShifutoCloudStack extends Stack {
     });
     // Write access alone isn't enough: on a conflicting write (see
     // putState's ConditionExpression), the handler reads back the current
-    // item to report its updatedAt in the 409 response.
+    // items to report them in the 409 response — and grantReadWriteData
+    // doesn't cover TransactWriteItems (the multi-record atomic write), so
+    // that's granted explicitly.
     table.grantReadWriteData(putStateFn);
+    putStateFn.addToRolePolicy(
+      new iam.PolicyStatement({ actions: ["dynamodb:TransactWriteItems"], resources: [table.tableArn] }),
+    );
 
     const createCheckoutSessionFn = new lambdaNode.NodejsFunction(this, "CreateCheckoutSessionFunction", {
       ...commonLambdaProps,
