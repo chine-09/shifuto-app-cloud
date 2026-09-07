@@ -48,6 +48,7 @@ export function useCloudSyncEngine(): {
   const [conflictRecords, setConflictRecords] = useState<StoredRecord[] | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const syncedRef = useRef<Map<string, SyncedEntry>>(new Map());
+  const hasAutoLoadedRef = useRef(false);
 
   function recordSynced(records: { sk: string; data: unknown }[], updatedAt: string) {
     for (const r of records) syncedRef.current.set(r.sk, { dataJson: JSON.stringify(r.data), updatedAt });
@@ -139,6 +140,36 @@ export function useCloudSyncEngine(): {
     syncedRef.current = new Map(records.map((r) => [r.sk, { dataJson: JSON.stringify(r.data), updatedAt: r.updatedAt }]));
     return fromRecords(records);
   }
+
+  /**
+   * Runs once per sign-in: a paid account's data lives in the cloud, but
+   * nothing else pulls it into this tab's memory automatically (a fresh
+   * page load always starts from createInitialState()). Skips if there's
+   * already unsaved local work (e.g. someone free-tier editing, then
+   * signing up mid-session) — that case is left to the normal debounced
+   * auto-save effect to push up instead of risking clobbering it here.
+   */
+  useEffect(() => {
+    if (auth.status === "signed-out") {
+      hasAutoLoadedRef.current = false;
+      return;
+    }
+    if (auth.status !== "signed-in" || auth.plan !== "paid") return;
+    if (hasAutoLoadedRef.current) return;
+    hasAutoLoadedRef.current = true;
+    if (state.meta.isDirty) return;
+
+    loadFromCloud()
+      .then((cloudState) => {
+        if (cloudState) dispatch({ type: "IMPORT_STATE", state: cloudState });
+      })
+      .catch(() => {
+        // Silent: the user can still work locally, and the account page's
+        // conflict/error affordances cover the cloud-connectivity case once
+        // they make an edit and auto-save is attempted.
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.status, auth.status === "signed-in" ? auth.plan : null, auth.status === "signed-in" ? auth.email : null]);
 
   /** Resolve a conflict by discarding this tab's local changes and loading the newer cloud version. */
   async function discardLocalAndUseCloud(): Promise<void> {

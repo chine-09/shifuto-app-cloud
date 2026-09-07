@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useAuth } from "../state/AuthContext";
-import { useAppDispatch, useAppState } from "../state/AppStateContext";
+import { useAppState } from "../state/AppStateContext";
 import { useCloudSync } from "../state/CloudSyncContext";
 import { createCheckoutSession } from "../lib/api/cloudStateClient";
 import { exportStateJson } from "../lib/io/exportStateJson";
@@ -13,15 +13,8 @@ type Mode = "signIn" | "signUp" | "confirm";
 export function AccountPage() {
   const { auth, signUp, confirmSignUp, resendConfirmationCode, signIn, signOut, refreshPlan } = useAuth();
   const state = useAppState();
-  const dispatch = useAppDispatch();
-  const {
-    status: syncStatus,
-    conflictUpdatedAt,
-    loadFromCloud,
-    overwriteCloudWithLocal,
-    discardLocalAndUseCloud,
-    restoreFromFile,
-  } = useCloudSync();
+  const { status: syncStatus, conflictUpdatedAt, overwriteCloudWithLocal, discardLocalAndUseCloud, restoreFromFile } =
+    useCloudSync();
   const restoreFileInputRef = useRef<HTMLInputElement>(null);
 
   const [mode, setMode] = useState<Mode>("signIn");
@@ -108,24 +101,6 @@ export function AccountPage() {
     }
   }
 
-  async function handleLoadFromCloud() {
-    if (state.meta.isDirty && !confirm("現在の未保存データは失われます。クラウドの保存データを読み込みますか？")) return;
-    setError(null);
-    setBusy(true);
-    try {
-      const cloudState = await loadFromCloud();
-      if (!cloudState) {
-        setError("クラウドにまだ保存データがありません。");
-        return;
-      }
-      dispatch({ type: "IMPORT_STATE", state: cloudState });
-    } catch {
-      setError("読み込みに失敗しました。");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   function handleBackupToFile() {
     // A plain backup copy — not tied to the cloud save/dirty flag, so this
     // never risks marking pending cloud changes as clean.
@@ -203,16 +178,13 @@ export function AccountPage() {
         {auth.plan === "paid" && (
           <section className="card p-3">
             <h2 className="mb-1 text-base font-semibold text-zinc-700">クラウド自動保存</h2>
-            <p className="mb-2 text-sm text-zinc-500">
-              変更するたびに自動でクラウドに保存されます（保存ボタンは不要です）。
+            <p className="text-sm text-zinc-500">
+              サインインすると保存済みのデータが自動で読み込まれ、変更するたびに自動でクラウドに保存されます（読み込み・保存ボタンは不要です）。
               {syncStatus === "saving" && " 保存中..."}
               {syncStatus === "saved" && " ✓ 保存済み"}
               {syncStatus === "error" && " 保存に失敗しました。ネットワーク接続を確認してください。"}
               {syncStatus === "conflict" && " ⚠ 競合のため一時停止中です（上の案内をご確認ください）。"}
             </p>
-            <Button type="button" variant="secondary" onClick={handleLoadFromCloud} disabled={busy}>
-              クラウドの保存データを読み込む
-            </Button>
           </section>
         )}
 
