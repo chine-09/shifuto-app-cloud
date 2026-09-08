@@ -1,8 +1,6 @@
 import { useRef } from "react";
 import { Link } from "react-router-dom";
 import { useAppDispatch, useAppState } from "../state/AppStateContext";
-import { useAuth } from "../state/AuthContext";
-import { useCloudSync } from "../state/CloudSyncContext";
 import { exportStateJson } from "../lib/io/exportStateJson";
 import { importStateJson } from "../lib/io/importStateJson";
 import { Button } from "./ui/Button";
@@ -10,9 +8,6 @@ import { Button } from "./ui/Button";
 export function Nav() {
   const state = useAppState();
   const dispatch = useAppDispatch();
-  const { auth } = useAuth();
-  const { status: cloudStatus, lastSavedAt } = useCloudSync();
-  const isPaid = auth.status === "signed-in" && auth.plan === "paid";
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleExport() {
@@ -50,46 +45,24 @@ export function Nav() {
             <Link to="/settings" className="rounded-md px-3 py-1.5 transition-colors hover:bg-zinc-100 hover:text-zinc-900">
               設定
             </Link>
-            <Link to="/account" className="rounded-md px-3 py-1.5 transition-colors hover:bg-zinc-100 hover:text-zinc-900">
-              アカウント
-              {auth.status === "signed-in" && (
-                <span className={`ml-1 text-sm ${auth.plan === "paid" ? "text-blue-600" : "text-zinc-400"}`}>
-                  ({auth.plan === "paid" ? "有料" : "無料"})
-                </span>
-              )}
-            </Link>
           </nav>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {isPaid ? (
-            <span className="text-sm text-zinc-500">
-              {cloudStatus === "saving" && "クラウドに保存中..."}
-              {cloudStatus === "error" && "⚠ クラウド保存に失敗しました"}
-              {cloudStatus === "conflict" && "⚠ 競合が発生しています（アカウントページを確認）"}
-              {(cloudStatus === "saved" || cloudStatus === "idle") &&
-                `✓ クラウドに保存済み${
-                  lastSavedAt ? `（${new Date(lastSavedAt).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}）` : ""
-                }`}
+          {state.meta.isDirty && (
+            <span
+              className="text-sm text-amber-600"
+              title="「保存(ファイル)」を押しておくと、ブラウザを閉じても「読み込み」から続きを再開できます。"
+            >
+              未保存の変更があります（保存で閉じても安心）
             </span>
-          ) : (
-            <>
-              {state.meta.isDirty && (
-                <span
-                  className="text-sm text-amber-600"
-                  title="「保存(ファイル)」を押しておくと、ブラウザを閉じても「読み込み」から続きを再開できます。"
-                >
-                  未保存の変更があります（保存で閉じても安心）
-                </span>
-              )}
-              <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()}>
-                読み込み
-              </Button>
-              <input ref={fileInputRef} type="file" accept="application/json" hidden onChange={handleImportFile} />
-              <Button type="button" onClick={handleExport}>
-                保存(ファイル)
-              </Button>
-            </>
           )}
+          <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()}>
+            読み込み
+          </Button>
+          <input ref={fileInputRef} type="file" accept="application/json" hidden onChange={handleImportFile} />
+          <Button type="button" onClick={handleExport}>
+            保存(ファイル)
+          </Button>
         </div>
       </div>
     </header>

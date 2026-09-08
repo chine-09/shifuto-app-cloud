@@ -2,7 +2,6 @@ import { Route, Routes } from 'react-router-dom'
 import { EmployeesPage } from './routes/EmployeesPage'
 import { PlansPage } from './routes/PlansPage'
 import { SettingsPage } from './routes/SettingsPage'
-import { AccountPage } from './routes/AccountPage'
 import { PlanLayout } from './routes/plans/PlanLayout'
 import { ShiftsPage } from './routes/plans/ShiftsPage'
 import { HeadcountPage } from './routes/plans/HeadcountPage'
@@ -11,8 +10,6 @@ import { GanttDetailPage } from './routes/plans/GanttDetailPage'
 import { Nav } from './components/Nav'
 import { Button } from './components/ui/Button'
 import { AppStateProvider, useAppDispatch, useAppState } from './state/AppStateContext'
-import { AuthProvider } from './state/AuthContext'
-import { CloudSyncProvider, useCloudSync } from './state/CloudSyncContext'
 import { useBeforeUnloadGuard } from './hooks/useBeforeUnloadGuard'
 import { useUndoShortcut } from './hooks/useUndoShortcut'
 import { exportStateJson } from './lib/io/exportStateJson'
@@ -22,7 +19,6 @@ function AppShell() {
   const dispatch = useAppDispatch()
   const { showSaveReminder, dismissSaveReminder } = useBeforeUnloadGuard(state.meta.isDirty)
   useUndoShortcut(dispatch)
-  useCloudSync() // subscribes this component to the shared instance so it re-renders as sync status changes
 
   function handleSaveFromReminder() {
     exportStateJson(state)
@@ -55,7 +51,6 @@ function AppShell() {
           <Route path="/" element={<PlansPage />} />
           <Route path="/employees" element={<EmployeesPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/account" element={<AccountPage />} />
           <Route path="/plans/:planId" element={<PlanLayout />}>
             <Route path="shifts" element={<ShiftsPage />} />
             <Route path="shifts-detail" element={<GanttDetailPage />} />
@@ -70,12 +65,8 @@ function AppShell() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppStateProvider>
-        <CloudSyncProvider>
-          <AppShell />
-        </CloudSyncProvider>
-      </AppStateProvider>
-    </AuthProvider>
+    <AppStateProvider>
+      <AppShell />
+    </AppStateProvider>
   )
 }
