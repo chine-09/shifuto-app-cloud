@@ -10,8 +10,6 @@ new ShifutoCloudStack(app, "ShifutoCloudStack", {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: process.env.CDK_DEFAULT_REGION ?? "ap-northeast-1",
   },
-  // Must be globally unique across all AWS accounts (Cognito Hosted UI domain).
-  cognitoDomainPrefix: app.node.tryGetContext("cognitoDomainPrefix") ?? "shifuto-cloud",
   // Vite picks the next free port when its default is taken, so allow a
   // small range of likely ports rather than just one — this is dev-only
   // convenience, never used for the deployed CORS origin.
