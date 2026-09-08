@@ -62,7 +62,6 @@ export function DayGanttRow({
     setActiveId(segment.id);
 
     startPointerDrag(
-      e,
       (time) => {
         const cur = liveRef.current!;
 
@@ -108,7 +107,6 @@ export function DayGanttRow({
     setActiveId(segment.id);
 
     startPointerDrag(
-      e,
       (time, ev) => {
         if (!moved) {
           if (Math.abs(ev.clientX - startX) < MOVE_THRESHOLD_PX) return;
