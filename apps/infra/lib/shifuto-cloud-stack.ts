@@ -46,15 +46,47 @@ export class ShifutoCloudStack extends Stack {
       removalPolicy: RemovalPolicy.RETAIN,
     });
 
+    const s3Origin = origins.S3BucketOrigin.withOriginAccessControl(webBucket);
+
+    // The app lives under /app/* (client-side routed by react-router) behind
+    // a static marketing landing page at the site root. A CloudFront
+    // Function rewrites any extensionless /app/* request (a client-side
+    // route, not a JS/CSS/image asset) to /app/index.html *before* it hits
+    // S3 — this is what makes deep links like /app/employees work on
+    // refresh, since the private bucket has no such object.
+    const appSpaFallback = new cloudfront.Function(this, "AppSpaFallback", {
+      code: cloudfront.FunctionCode.fromInline(`
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+          if ((uri === "/app" || uri.startsWith("/app/")) && uri.indexOf(".") === -1) {
+            request.uri = "/app/index.html";
+          }
+          return request;
+        }
+      `),
+    });
+
     const distribution = new cloudfront.Distribution(this, "WebDistribution", {
       defaultBehavior: {
-        origin: origins.S3BucketOrigin.withOriginAccessControl(webBucket),
+        origin: s3Origin,
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
       },
+      additionalBehaviors: {
+        "/app/*": {
+          origin: s3Origin,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+          functionAssociations: [
+            { function: appSpaFallback, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST },
+          ],
+        },
+      },
       defaultRootObject: "index.html",
-      // SPA client-side routing: any path CloudFront can't find in S3 falls
-      // back to index.html so react-router can resolve it in the browser.
+      // Soft fallback for the marketing site itself (e.g. a mistyped root
+      // path) — not relied on for /app/* routing, which the function above
+      // already resolves before the origin is ever asked.
       errorResponses: [
         { httpStatus: 403, responseHttpStatus: 200, responsePagePath: "/index.html", ttl: Duration.seconds(0) },
         { httpStatus: 404, responseHttpStatus: 200, responsePagePath: "/index.html", ttl: Duration.seconds(0) },
